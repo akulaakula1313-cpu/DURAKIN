@@ -1,0 +1,728 @@
+/* SANI GROUP — ДУРАК PREMIUM ROYALE — FIXED STYLE */
+/* Clean card-table UI: no chess/checkers board styles. */
+
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{
+ --bg:#07120d;--felt:#0c4b2d;--felt2:#083820;--gold:#e8c56a;--gold2:#b98b2f;
+ --text:#f7f3e8;--muted:#9eae9f;--red:#d94b4b;--green:#42d889;--blue:#5ca9ff;
+ --cardw:78px;--cardh:112px;--shadow:0 14px 35px rgba(0,0,0,.42);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 35%,#123f28,#050b08 75%);font-family:Manrope,system-ui,sans-serif;color:var(--text)}
+button,input{font:inherit}
+button{border:0}
+#app{width:100vw;height:100vh;position:relative;overflow:hidden}
+#table{
+ position:absolute;inset:0;background:
+ radial-gradient(ellipse at center,rgba(35,125,76,.35),transparent 58%),
+ repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 2px,transparent 2px 8px),
+ linear-gradient(135deg,var(--felt),var(--felt2));
+ box-shadow:inset 0 0 130px rgba(0,0,0,.72);
+}
+#table:after{content:"";position:absolute;inset:14px;border:1px solid rgba(232,197,106,.16);border-radius:28px;pointer-events:none}
+.topbar{position:absolute;z-index:50;left:0;right:0;top:0;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:linear-gradient(180deg,rgba(3,8,5,.86),rgba(3,8,5,.35),transparent)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{width:35px;height:35px;border:1px solid rgba(232,197,106,.7);border-radius:10px;display:grid;place-items:center;color:var(--gold);font-size:18px;background:rgba(0,0,0,.22);box-shadow:0 0 22px rgba(232,197,106,.08)}
+.brand-name{font-weight:800;letter-spacing:1.4px;font-size:13px}
+.room-pill,.status-pill{border:1px solid rgba(232,197,106,.35);background:rgba(0,0,0,.26);border-radius:999px;padding:7px 11px;color:var(--gold);font-size:11px}
+.top-actions{display:flex;gap:8px;align-items:center}
+.icon-btn{height:36px;min-width:36px;border-radius:10px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer}
+.icon-btn:hover{border-color:rgba(232,197,106,.55);color:var(--gold)}
+.seat{position:absolute;z-index:20;display:flex;flex-direction:column;align-items:center;gap:7px;min-width:90px}
+.seat.top{top:62px;left:50%;transform:translateX(-50%)}
+.seat.left{left:18px;top:42%;transform:translateY(-50%)}
+.seat.right{right:18px;top:42%;transform:translateY(-50%)}
+.profile{display:flex;flex-direction:column;align-items:center;position:relative}
+.avatar{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#243e31,#0b1710);border:2px solid rgba(255,255,255,.35);box-shadow:0 8px 18px rgba(0,0,0,.35);font-weight:800}
+.avatar.bot{border-color:rgba(92,169,255,.7)}
+.name{font-size:11px;font-weight:700;margin-top:-4px;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.58);white-space:nowrap}
+.turn-ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--gold);box-shadow:0 0 18px rgba(232,197,106,.65);animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.35;transform:scale(1.08)}}
+.role{font-size:9px;color:var(--muted)}
+.opp-hand{display:flex;justify-content:center}
+.back{width:28px;height:40px;margin-left:-14px;border-radius:5px;border:1px solid rgba(232,197,106,.85);background:
+ repeating-linear-gradient(45deg,rgba(232,197,106,.18) 0 2px,transparent 2px 7px),
+ radial-gradient(circle,#194b78,#081e35);box-shadow:-2px 3px 7px rgba(0,0,0,.4)}
+.back:first-child{margin-left:0}
+.seat.left .opp-hand,.seat.right .opp-hand{flex-direction:column}
+.seat.left .back,.seat.right .back{margin-left:0;margin-top:-28px;width:40px;height:28px}
+.seat.left .back:first-child,.seat.right .back:first-child{margin-top:0}
+#center{position:absolute;z-index:10;left:50%;top:48%;transform:translate(-50%,-50%);width:min(760px,72vw);height:300px}
+#deck{position:absolute;left:0;top:50%;transform:translateY(-50%);width:var(--cardw);height:var(--cardh)}
+.deck-card{width:100%;height:100%;border-radius:8px;border:2px solid var(--gold2);background:
+ repeating-linear-gradient(45deg,rgba(232,197,106,.16) 0 2px,transparent 2px 8px),
+ radial-gradient(circle at center,#1d4f7e,#081f37);box-shadow:var(--shadow);display:grid;place-items:center}
+.deck-logo{width:58%;height:58%;border:1px solid rgba(232,197,106,.7);border-radius:50%;display:grid;place-items:center;color:var(--gold);font-size:23px}
+#deckCount{position:absolute;right:-11px;bottom:-9px;padding:3px 7px;border-radius:999px;background:#070d09;border:1px solid rgba(232,197,106,.45);color:var(--gold);font-size:10px;font-weight:800}
+#trump{position:absolute;left:28px;top:22px;z-index:-1;transform:rotate(8deg)}
+#pairs{position:absolute;left:105px;right:0;top:0;bottom:0;display:flex;flex-wrap:wrap;align-content:center;justify-content:center;gap:15px}
+.pair{position:relative;width:calc(var(--cardw) + 22px);height:var(--cardh)}
+.pair .card{position:absolute;left:0;top:0}
+.pair .card.def{left:19px;top:14px;z-index:2}
+.card{width:var(--cardw);height:var(--cardh);border-radius:8px;background:linear-gradient(145deg,#fff,#ece9df);color:#171717;border:1px solid rgba(0,0,0,.25);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.card.red{color:#c62e36}
+.card .corner{position:absolute;top:5px;left:7px;text-align:center;line-height:.92;font-weight:800}
+.card .corner b{font-size:20px;display:block}
+.card .corner span{font-size:15px}
+.card .corner.bottom{top:auto;left:auto;right:7px;bottom:5px;transform:rotate(180deg)}
+.card .center-suit{position:absolute;inset:0;display:grid;place-items:center;font-size:42px;opacity:.94}
+.card .shine{position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.55),transparent 25%,transparent 75%,rgba(0,0,0,.05));pointer-events:none}
+.card.clickable{cursor:pointer;transition:transform .14s,filter .14s}
+.card.clickable:hover{transform:translateY(-13px) scale(1.025);filter:brightness(1.04)}
+.card.playable{box-shadow:0 0 0 2px rgba(232,197,106,.7),0 14px 35px rgba(0,0,0,.45)}
+.my-zone{position:absolute;z-index:30;left:50%;bottom:8px;transform:translateX(-50%);width:min(1000px,96vw);display:flex;flex-direction:column;align-items:center}
+#message{min-height:31px;max-width:80%;padding:7px 16px;border-radius:999px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.09);font-size:11px;text-align:center;color:var(--gold);backdrop-filter:blur(8px)}
+.actions{display:flex;gap:9px;margin:7px 0 6px;min-height:38px}
+.action{padding:9px 18px;border-radius:11px;font-size:11px;font-weight:800;cursor:pointer;box-shadow:0 7px 16px rgba(0,0,0,.25);transition:.15s}
+.action:hover{transform:translateY(-1px)}
+.action:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.take{background:linear-gradient(135deg,#d94b4b,#a92f39);color:#fff}
+.done{background:linear-gradient(135deg,#e8c56a,#bd8f30);color:#17130a}
+.pass{background:linear-gradient(135deg,#4d94df,#3168a7);color:#fff}
+.hand{display:flex;justify-content:center;align-items:flex-end;width:100%;height:118px;padding:0 10px}
+.hand .wrap{margin-left:-34px;position:relative}
+.hand .wrap:first-child{margin-left:0}
+.hand .wrap .card{cursor:pointer}
+.lobby,.modal-layer{position:absolute;z-index:1000;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,7,4,.78);backdrop-filter:blur(10px)}
+.panel{width:min(470px,calc(100% - 28px));max-height:92vh;overflow:auto;border:1px solid rgba(232,197,106,.25);border-radius:22px;background:linear-gradient(145deg,rgba(18,30,22,.98),rgba(7,14,10,.98));box-shadow:0 28px 90px rgba(0,0,0,.65);padding:25px}
+.hero{text-align:center;margin-bottom:20px}
+.hero .suits{font-size:20px;color:var(--gold);letter-spacing:8px}
+.hero h1{font-size:28px;margin:8px 0 3px;letter-spacing:1px}
+.hero p{margin:0;color:var(--muted);font-size:11px}
+.field{margin:11px 0}.label{display:block;font-size:10px;color:var(--muted);margin:0 0 6px 3px}
+.input{width:100%;height:43px;border-radius:11px;border:1px solid rgba(255,255,255,.1);background:#09130d;color:#fff;padding:0 13px;outline:none}
+.input:focus{border-color:rgba(232,197,106,.65)}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode{padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:rgba(255,255,255,.035);color:#fff;cursor:pointer;text-align:left}
+.mode strong{display:block;font-size:12px}.mode small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.mode:hover{border-color:rgba(232,197,106,.5)}
+.primary{width:100%;height:45px;border-radius:12px;background:linear-gradient(135deg,#e8c56a,#b8892c);color:#17130a;font-weight:900;cursor:pointer;margin-top:9px}
+.secondary{width:100%;height:42px;border-radius:12px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer;margin-top:8px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.divider{height:1px;background:rgba(255,255,255,.08);margin:17px 0}
+.status{min-height:17px;text-align:center;color:var(--gold);font-size:10px;margin-top:8px}
+.sani{margin-top:17px;text-align:center;color:var(--muted);font-size:9px}.sani b{color:var(--gold);letter-spacing:2px}
+.modal-layer{display:none}.modal{width:min(560px,calc(100% - 28px));max-height:88vh;overflow:auto;border-radius:20px;border:1px solid rgba(232,197,106,.28);background:#0b1510;padding:24px;box-shadow:0 25px 80px rgba(0,0,0,.65)}
+.modal h2{margin:0 0 12px;color:var(--gold);font-size:20px}.modal p,.modal li{color:#c8d2ca;font-size:12px;line-height:1.55}.modal li{margin:7px 0}
+.close{float:right;background:none;color:#a9b5ab;font-size:24px;cursor:pointer}
+.result{text-align:center}.result .big{font-size:34px;font-weight:900;color:var(--gold);margin:7px}
+.toast{position:absolute;z-index:1500;left:50%;top:72px;transform:translateX(-50%) translateY(-15px);opacity:0;pointer-events:none;background:#09120d;border:1px solid rgba(232,197,106,.45);padding:9px 14px;border-radius:999px;font-size:11px;color:#fff;transition:.25s}
+.toast.show{opacity:1;transform:translateX(-50%)}
+@media(max-width:900px){:root{--cardw:64px;--cardh:92px}.hand{height:100px}.hand .wrap{margin-left:-27px}#center{width:78vw;height:260px}.seat.left{left:5px}.seat.right{right:5px}}
+@media(max-width:600px){:root{--cardw:51px;--cardh:74px}.topbar{height:48px;padding:0 9px}.brand-name{display:none}.brand-mark{width:31px;height:31px}.room-pill{font-size:9px;padding:6px 8px}.icon-btn{height:32px;min-width:32px}.seat.top{top:53px}.seat.left{left:2px}.seat.right{right:2px}.avatar{width:39px;height:39px}.name{font-size:9px}.back{width:22px;height:31px;margin-left:-11px}.seat.left .back,.seat.right .back{width:31px;height:22px;margin-top:-22px}.center-suit{font-size:30px!important}.card .corner b{font-size:16px}.card .corner span{font-size:12px}#center{top:43%;width:86vw;height:210px}.actions{gap:5px}.action{padding:8px 11px;font-size:9px}.my-zone{bottom:2px}.hand{height:79px}.hand .wrap{margin-left:-20px}#message{max-width:94%;font-size:9px;padding:6px 11px}.panel{padding:18px}.hero h1{font-size:23px}.mode-grid{grid-template-columns:1fr}.modal{padding:18px}}
+
+/* SANI GROUP ULTRA PREMIUM LAYER */
+.count-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.count{height:38px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);color:#dbe5dd;font-size:10px;font-weight:800;cursor:pointer}.count.active{color:#17130a;background:linear-gradient(135deg,#e8c56a,#b8892c);border-color:rgba(232,197,106,.7);box-shadow:inset 0 1px rgba(255,255,255,.4),0 8px 18px rgba(0,0,0,.2)}
+#roundHud{position:absolute;left:50%;top:3px;transform:translateX(-50%);z-index:8;min-width:170px;padding:7px 15px;border:1px solid rgba(232,197,106,.16);border-radius:999px;background:rgba(3,12,7,.48);backdrop-filter:blur(12px);text-align:center;box-shadow:0 10px 25px rgba(0,0,0,.16)}#roundLabel{display:block;font-size:8px;letter-spacing:2px;color:var(--muted)}#turnLabel{display:block;margin-top:1px;font-size:10px;letter-spacing:1px;color:var(--gold)}
+
+#table{background:
+ radial-gradient(ellipse at 50% 38%,rgba(64,190,116,.24),transparent 34%),
+ radial-gradient(ellipse at 50% 50%,rgba(0,0,0,.0) 35%,rgba(0,0,0,.52) 100%),
+ repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 5px),
+ repeating-linear-gradient(90deg,rgba(0,0,0,.018) 0 1px,transparent 1px 7px),
+ linear-gradient(135deg,#0a6339 0%,#074427 42%,#052d1c 100%);
+}
+#table:before{content:"SANI GROUP";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-8deg);font-size:clamp(70px,12vw,180px);font-weight:900;letter-spacing:.18em;color:rgba(255,255,255,.025);white-space:nowrap;pointer-events:none}
+.topbar{height:70px;padding:0 24px;background:linear-gradient(180deg,rgba(1,7,4,.94),rgba(1,7,4,.46),transparent);border-bottom:1px solid rgba(232,197,106,.07)}
+.brand-mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(145deg,rgba(232,197,106,.16),rgba(0,0,0,.32));box-shadow:inset 0 1px rgba(255,255,255,.12),0 10px 28px rgba(0,0,0,.25)}
+.brand-name{font-size:12px;letter-spacing:2px}
+.status-pill,.room-pill{box-shadow:inset 0 1px rgba(255,255,255,.08),0 8px 22px rgba(0,0,0,.18);backdrop-filter:blur(12px)}
+.icon-btn{box-shadow:inset 0 1px rgba(255,255,255,.08),0 8px 20px rgba(0,0,0,.18);backdrop-filter:blur(12px)}
+.seat{filter:drop-shadow(0 12px 18px rgba(0,0,0,.24))}
+.avatar{background:radial-gradient(circle at 35% 25%,#315b45,#0a1b11 70%);border-color:rgba(255,255,255,.25);box-shadow:inset 0 1px rgba(255,255,255,.2),0 12px 28px rgba(0,0,0,.35)}
+.avatar.bot{background:radial-gradient(circle at 35% 25%,#2d5278,#071725 72%)}
+.name{border:1px solid rgba(255,255,255,.07);backdrop-filter:blur(8px)}
+#center{width:min(900px,78vw);height:340px}
+#center:before{content:"";position:absolute;inset:8% 4%;border:1px solid rgba(232,197,106,.10);border-radius:38px;background:radial-gradient(ellipse at center,rgba(255,255,255,.025),transparent 64%);box-shadow:inset 0 0 70px rgba(0,0,0,.14),0 25px 80px rgba(0,0,0,.12);pointer-events:none}
+#deck{filter:drop-shadow(0 18px 25px rgba(0,0,0,.38))}
+.deck-card{border-radius:11px;background:repeating-linear-gradient(45deg,rgba(232,197,106,.18) 0 2px,transparent 2px 7px),radial-gradient(circle at 30% 20%,#315f89,#071d32 72%);box-shadow:inset 0 1px rgba(255,255,255,.25),0 18px 35px rgba(0,0,0,.48)}
+.deck-logo{border-width:2px;background:rgba(0,0,0,.15);box-shadow:inset 0 0 20px rgba(232,197,106,.08),0 0 18px rgba(232,197,106,.12)}
+#deckCount{box-shadow:0 6px 16px rgba(0,0,0,.35)}
+#trump{filter:drop-shadow(0 12px 20px rgba(0,0,0,.4))}
+.card{border-radius:11px;background:linear-gradient(145deg,#fffefb 0%,#f5f1e7 52%,#dfd9cc 100%);box-shadow:inset 0 1px rgba(255,255,255,.9),inset 0 -1px rgba(0,0,0,.12),0 17px 32px rgba(0,0,0,.43);border-color:rgba(20,20,20,.28)}
+.card:after{content:"";position:absolute;inset:3px;border:1px solid rgba(0,0,0,.07);border-radius:8px;pointer-events:none}
+.card .center-suit{font-size:46px;text-shadow:0 2px 4px rgba(0,0,0,.12)}
+.card.clickable:hover{transform:translateY(-18px) scale(1.035);box-shadow:inset 0 1px rgba(255,255,255,.95),0 25px 42px rgba(0,0,0,.48)}
+.hand .wrap{transition:transform .15s;transform-origin:bottom center}
+.hand .wrap:hover{z-index:40}
+.pair{filter:drop-shadow(0 15px 23px rgba(0,0,0,.28))}
+.pair .card.def{box-shadow:inset 0 1px rgba(255,255,255,.9),0 16px 32px rgba(0,0,0,.48),0 0 0 1px rgba(232,197,106,.2)}
+.my-zone{bottom:5px}
+#message{min-height:36px;padding:8px 20px;border-color:rgba(232,197,106,.15);box-shadow:0 12px 28px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.06)}
+.action{min-width:108px;height:42px;letter-spacing:.7px;border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px rgba(255,255,255,.18),0 12px 24px rgba(0,0,0,.25)}
+.take{background:linear-gradient(135deg,#ed5960,#9d2631)}
+.done{background:linear-gradient(135deg,#f2d47c,#ae7c1e)}
+.pass{background:linear-gradient(135deg,#63a9ef,#285b96)}
+.lobby{background:radial-gradient(circle at 50% 25%,rgba(34,112,70,.22),rgba(2,7,4,.88) 55%),rgba(2,7,4,.82)}
+.panel{background:linear-gradient(145deg,rgba(18,33,24,.97),rgba(5,12,8,.98));border-color:rgba(232,197,106,.22);box-shadow:0 35px 110px rgba(0,0,0,.72),inset 0 1px rgba(255,255,255,.06)}
+.hero h1{font-size:36px;letter-spacing:5px;text-shadow:0 7px 30px rgba(232,197,106,.12)}
+.hero .suits{font-size:22px;text-shadow:0 0 24px rgba(232,197,106,.2)}
+.mode{background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));box-shadow:inset 0 1px rgba(255,255,255,.05)}
+.mode:hover{transform:translateY(-2px);box-shadow:0 12px 25px rgba(0,0,0,.2)}
+.primary{box-shadow:inset 0 1px rgba(255,255,255,.35),0 12px 26px rgba(0,0,0,.28)}
+.secondary{box-shadow:inset 0 1px rgba(255,255,255,.06)}
+.modal{background:linear-gradient(145deg,#102018,#07100b);box-shadow:0 35px 100px rgba(0,0,0,.72),inset 0 1px rgba(255,255,255,.05)}
+@media(max-width:900px){#center{width:84vw;height:300px}.topbar{padding:0 12px}.brand-name{display:none}}
+@media(max-width:600px){#center{width:91vw;height:230px}.hero h1{font-size:29px}.topbar{height:55px}.my-zone{bottom:1px}.action{min-width:0;padding:8px 13px}}
+
+
+/* ===== SANI GROUP ROYALE — premium visual layer ===== */
+#table{
+ background:
+   radial-gradient(ellipse at 50% 45%,rgba(65,174,105,.20),transparent 42%),
+   radial-gradient(ellipse at 50% 100%,rgba(0,0,0,.55),transparent 52%),
+   repeating-linear-gradient(93deg,rgba(255,255,255,.018) 0 1px,transparent 1px 5px),
+   repeating-linear-gradient(0deg,rgba(0,0,0,.025) 0 1px,transparent 1px 6px),
+   linear-gradient(180deg,#0b1711 0%,#082b1b 18%,#064526 52%,#052b1a 82%,#030906 100%);
+}
+#table:before{
+ content:"";position:absolute;inset:34px 18px 18px;border-radius:44px;
+ background:linear-gradient(135deg,rgba(255,255,255,.035),transparent 18%,transparent 82%,rgba(0,0,0,.20));
+ border:1px solid rgba(224,190,95,.25);box-shadow:inset 0 0 100px rgba(0,0,0,.35),0 0 80px rgba(0,0,0,.25);
+ pointer-events:none;
+}
+#table:after{inset:46px 30px 30px;border:1px solid rgba(224,190,95,.10);border-radius:38px;box-shadow:inset 0 0 50px rgba(0,0,0,.28)}
+#app:before,#app:after{content:"";position:absolute;z-index:2;pointer-events:none}
+#app:before{width:42vw;height:18vw;left:29vw;top:-11vw;border-radius:50%;background:radial-gradient(ellipse,rgba(255,223,139,.11),transparent 66%);filter:blur(12px)}
+#app:after{inset:0;background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.25) 100%);z-index:3}
+.topbar{height:72px;padding:0 28px;background:linear-gradient(180deg,rgba(2,5,3,.94),rgba(2,6,4,.58),transparent)}
+.brand{gap:12px}.brand-mark{width:42px;height:42px;border-radius:13px;font-size:21px;box-shadow:0 0 25px rgba(232,197,106,.14),inset 0 0 15px rgba(255,255,255,.05)}
+.brand-name{font-size:14px;letter-spacing:2px;text-shadow:0 1px 15px rgba(232,197,106,.20)}
+.room-pill,.status-pill{padding:8px 13px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.32));box-shadow:inset 0 1px rgba(255,255,255,.08),0 5px 20px rgba(0,0,0,.2)}
+.icon-btn{height:40px;min-width:40px;border-radius:12px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(0,0,0,.30));box-shadow:inset 0 1px rgba(255,255,255,.08),0 8px 18px rgba(0,0,0,.22)}
+#center{top:49%;width:min(900px,76vw);height:350px}
+#center:before{content:"";position:absolute;inset:22px 18px;border-radius:50%;border:1px solid rgba(232,197,106,.13);box-shadow:inset 0 0 65px rgba(0,0,0,.20),0 0 45px rgba(0,0,0,.12)}
+#center:after{content:"SANI GROUP  •  ДУРАК";position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);font-family:Georgia,serif;letter-spacing:6px;font-size:15px;color:rgba(232,197,106,.15);pointer-events:none;white-space:nowrap}
+#roundHud{position:absolute;left:50%;top:-6px;transform:translateX(-50%);min-width:240px;padding:10px 18px;border-radius:999px;background:linear-gradient(180deg,rgba(10,18,13,.92),rgba(3,8,5,.92));border:1px solid rgba(232,197,106,.30);box-shadow:0 12px 30px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.07);text-align:center;z-index:8}
+#roundLabel{display:block;font-size:8px;letter-spacing:3px;color:#9eae9f}#turnLabel{display:block;margin-top:2px;font-size:12px;color:var(--gold);letter-spacing:1px}
+#deck{left:12px;width:82px;height:116px;filter:drop-shadow(0 18px 18px rgba(0,0,0,.4))}
+.deck-card{border-radius:10px;border:2px solid #c79b40;background:
+ repeating-linear-gradient(45deg,rgba(232,197,106,.18) 0 1px,transparent 1px 6px),
+ repeating-linear-gradient(-45deg,rgba(255,255,255,.04) 0 1px,transparent 1px 7px),
+ radial-gradient(circle at 50% 50%,#285e8f,#0a2742 68%,#061626);box-shadow:0 15px 32px rgba(0,0,0,.48),inset 0 0 0 3px rgba(0,0,0,.18),inset 0 0 25px rgba(255,255,255,.07)}
+.deck-logo{border:1px solid rgba(232,197,106,.75);box-shadow:inset 0 0 18px rgba(232,197,106,.12),0 0 20px rgba(232,197,106,.12);font-size:26px}
+#deckCount{right:-9px;bottom:-8px;font-size:11px;padding:4px 8px;box-shadow:0 5px 14px rgba(0,0,0,.4)}
+#trump{left:35px;top:25px}.pair{filter:drop-shadow(0 13px 16px rgba(0,0,0,.28))}.pair .card.def{left:21px;top:16px}
+.card{border-radius:10px;border:1px solid rgba(0,0,0,.34);background:
+ radial-gradient(circle at 70% 15%,rgba(255,255,255,.72),transparent 24%),
+ linear-gradient(145deg,#fffefb,#f0ede4 55%,#dcd7ca);box-shadow:0 18px 34px rgba(0,0,0,.46),inset 0 0 0 2px rgba(255,255,255,.35),inset 0 0 0 3px rgba(0,0,0,.045)}
+.card:after{content:"";position:absolute;inset:4px;border:1px solid rgba(0,0,0,.10);border-radius:7px;pointer-events:none}.card .corner{top:6px;left:8px}.card .corner b{font-family:Georgia,serif;text-shadow:0 1px rgba(255,255,255,.65)}.card .center-suit{font-size:46px;text-shadow:0 3px 5px rgba(0,0,0,.12)}
+.card .shine{background:linear-gradient(120deg,rgba(255,255,255,.65),transparent 22%,transparent 67%,rgba(255,255,255,.13));mix-blend-mode:screen}
+.card.clickable:hover{transform:translateY(-18px) scale(1.045);filter:brightness(1.055) drop-shadow(0 10px 20px rgba(232,197,106,.15))}
+.card.playable{box-shadow:0 0 0 2px rgba(232,197,106,.85),0 18px 40px rgba(0,0,0,.48),0 0 26px rgba(232,197,106,.16)}
+.hand{height:148px;perspective:900px}.hand .wrap{margin-left:-39px;transition:transform .18s,margin .18s;transform-origin:bottom center}.hand .wrap:first-child{margin-left:0}.hand .wrap:nth-child(1){transform:rotate(-9deg) translateY(9px)}.hand .wrap:nth-child(2){transform:rotate(-6deg) translateY(4px)}.hand .wrap:nth-child(3){transform:rotate(-3deg) translateY(1px)}.hand .wrap:nth-child(4){transform:rotate(0deg)}.hand .wrap:nth-child(5){transform:rotate(3deg) translateY(1px)}.hand .wrap:nth-child(6){transform:rotate(6deg) translateY(4px)}.hand .wrap:nth-child(7){transform:rotate(9deg) translateY(9px)}.hand .wrap:hover{z-index:20;transform:translateY(-17px) rotate(0deg) scale(1.04)!important}
+.my-zone{bottom:12px;width:min(1080px,97vw)}#message{min-height:34px;padding:8px 18px;background:linear-gradient(180deg,rgba(0,0,0,.60),rgba(0,0,0,.38));border-color:rgba(232,197,106,.15);box-shadow:0 10px 30px rgba(0,0,0,.22);font-size:11px}
+.actions{gap:10px;margin:8px 0}.action{min-width:102px;padding:11px 18px;border-radius:13px;border:1px solid rgba(255,255,255,.10);box-shadow:0 10px 22px rgba(0,0,0,.30),inset 0 1px rgba(255,255,255,.13);letter-spacing:.6px}.take{background:linear-gradient(135deg,#d94b4b,#8e2832)}.done{background:linear-gradient(135deg,#f1d27b,#ad7d25)}.pass{background:linear-gradient(135deg,#559be7,#2d5f99)}
+.seat{min-width:120px}.seat.top{top:76px}.seat.left{left:26px}.seat.right{right:26px}.avatar{width:58px;height:58px;border:2px solid rgba(232,197,106,.58);background:radial-gradient(circle at 35% 25%,#3d5848,#0a1510 68%);box-shadow:0 10px 24px rgba(0,0,0,.46),inset 0 0 18px rgba(255,255,255,.05)}.avatar.bot{border-color:rgba(92,169,255,.72)}.name{font-size:12px;padding:4px 11px;background:linear-gradient(180deg,rgba(0,0,0,.78),rgba(0,0,0,.45));border:1px solid rgba(232,197,106,.12)}.role{font-size:9px;letter-spacing:1px}.back{width:30px;height:43px;border-radius:6px;border-color:#c89c45;background:
+ repeating-linear-gradient(45deg,rgba(232,197,106,.20) 0 1px,transparent 1px 6px),
+ repeating-linear-gradient(-45deg,rgba(255,255,255,.035) 0 1px,transparent 1px 7px),
+ radial-gradient(circle,#245d90,#071d33);box-shadow:-3px 5px 9px rgba(0,0,0,.46),inset 0 0 0 2px rgba(0,0,0,.20)}
+.seat.left .back,.seat.right .back{width:43px;height:30px}
+.lobby,.modal-layer{background:radial-gradient(circle at 50% 42%,rgba(18,50,32,.30),rgba(0,0,0,.86) 72%),rgba(1,4,2,.72)}
+.panel{width:min(520px,calc(100% - 28px));padding:30px;border-radius:26px;border-color:rgba(232,197,106,.36);background:linear-gradient(145deg,rgba(20,31,23,.98),rgba(5,11,8,.99));box-shadow:0 40px 110px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.08)}
+.hero .suits{font-size:22px;text-shadow:0 0 22px rgba(232,197,106,.22)}.hero h1{font-family:Georgia,serif;font-size:42px;letter-spacing:5px;text-shadow:0 5px 30px rgba(0,0,0,.5)}.hero p{letter-spacing:2px}.input{height:46px;background:linear-gradient(180deg,#0c1811,#07100b);border-color:rgba(232,197,106,.15);box-shadow:inset 0 2px 8px rgba(0,0,0,.30)}
+.mode{padding:17px;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(0,0,0,.18));border-color:rgba(232,197,106,.12);box-shadow:inset 0 1px rgba(255,255,255,.06),0 8px 20px rgba(0,0,0,.16)}.mode:hover{transform:translateY(-2px);box-shadow:0 12px 25px rgba(0,0,0,.25),0 0 20px rgba(232,197,106,.07)}
+.primary{height:47px;box-shadow:0 10px 25px rgba(0,0,0,.30),inset 0 1px rgba(255,255,255,.35)}.secondary{height:44px;background:linear-gradient(145deg,rgba(255,255,255,.07),rgba(0,0,0,.22));box-shadow:inset 0 1px rgba(255,255,255,.06)}
+.modal{border-radius:24px;background:linear-gradient(145deg,#101b14,#060d09);box-shadow:0 40px 110px rgba(0,0,0,.8),inset 0 1px rgba(255,255,255,.06)}
+.toast{border:1px solid rgba(232,197,106,.22)!important;background:rgba(4,10,7,.92)!important;box-shadow:0 18px 40px rgba(0,0,0,.55)!important}
+@media(max-width:800px){#center{width:96vw;height:270px}#center:after{font-size:10px;letter-spacing:3px}.topbar{padding:0 10px;height:58px}.brand-name{font-size:11px}.room-pill{display:none!important}.seat.left{left:3px}.seat.right{right:3px}.seat.top{top:58px}.avatar{width:48px;height:48px}.hand{height:120px}.hand .wrap{margin-left:-31px}.action{min-width:80px;padding:9px 12px}.my-zone{bottom:4px}.card{border-radius:8px}}
+
+
+
+
+/* SANI GROUP — SIGNATURE EDITION */
+:root{--gold:#f4d47b;--gold-hi:#fff0b1;--ink:#06100a}
+body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:2000;background:radial-gradient(circle at 50% -10%,rgba(255,255,255,.08),transparent 35%),linear-gradient(115deg,transparent 0 47%,rgba(255,255,255,.018) 50%,transparent 53%);mix-blend-mode:screen;opacity:.7}
+#table{box-shadow:inset 0 0 180px rgba(0,0,0,.48),inset 0 0 0 1px rgba(255,255,255,.035)}
+#table:after{box-shadow:inset 0 0 50px rgba(0,0,0,.18),0 0 80px rgba(0,0,0,.2)}
+.topbar{backdrop-filter:blur(14px)}
+.brand-mark{position:relative;overflow:hidden;border:1px solid rgba(244,212,123,.3)!important;color:var(--gold);font-size:19px;font-weight:900;display:grid;place-items:center}
+.brand-mark:after{content:"";position:absolute;inset:-50%;background:linear-gradient(110deg,transparent 40%,rgba(255,255,255,.22) 50%,transparent 60%);transform:translateX(-50%) rotate(15deg);animation:logoShine 5s infinite}
+@keyframes logoShine{0%,72%{transform:translateX(-80%) rotate(15deg)}88%,100%{transform:translateX(80%) rotate(15deg)}}
+.status-pill{border-color:rgba(244,212,123,.22)!important;color:var(--gold-hi)!important}
+#roundHud{border-color:rgba(244,212,123,.28);box-shadow:0 0 0 1px rgba(244,212,123,.04),0 12px 35px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.09)}
+#turnLabel{font-weight:900;text-shadow:0 0 18px rgba(244,212,123,.24)}
+.seat .profile{transition:transform .25s,filter .25s}
+.seat:has(.turn-ring) .profile{transform:translateY(-3px);filter:drop-shadow(0 0 14px rgba(244,212,123,.28))}
+.avatar{position:relative}
+.turn-ring{position:absolute;inset:-5px;border:2px solid var(--gold);border-radius:50%;box-shadow:0 0 0 3px rgba(244,212,123,.08),0 0 24px rgba(244,212,123,.35);animation:pulseRing 1.6s infinite}
+@keyframes pulseRing{50%{transform:scale(1.08);opacity:.65}}
+.card{isolation:isolate;transform-origin:center bottom}
+.card:before{content:"";position:absolute;inset:6px;border-radius:7px;border:1px solid rgba(255,255,255,.42);pointer-events:none;z-index:1}
+.card .center-suit{font-family:Georgia,serif;font-weight:900;filter:drop-shadow(0 3px 4px rgba(0,0,0,.12))}
+.card .corner b{text-shadow:0 1px 0 #fff,0 2px 3px rgba(0,0,0,.08)}
+.card.playable{animation:cardReady 1.7s ease-in-out infinite}
+@keyframes cardReady{50%{box-shadow:0 0 0 3px rgba(244,212,123,.42),0 20px 40px rgba(0,0,0,.46)}}
+.card.clickable:active{transform:translateY(-5px) scale(.99)!important}
+.pair{animation:dealIn .22s ease both}
+@keyframes dealIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
+#deck .deck-card{transition:transform .25s,filter .25s}
+#deck:hover .deck-card{transform:translateY(-4px) rotate(-1deg);filter:brightness(1.08)}
+#trump .card{box-shadow:0 0 0 2px rgba(244,212,123,.24),0 18px 35px rgba(0,0,0,.5)}
+#message{background:linear-gradient(180deg,rgba(8,22,14,.8),rgba(3,10,6,.68));backdrop-filter:blur(16px);font-weight:700;letter-spacing:.15px}
+.action{position:relative;overflow:hidden;font-weight:900;transition:transform .16s,filter .16s,box-shadow .16s}
+.action:after,.primary:after,.secondary:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.16) 50%,transparent 75%);transform:translateX(-120%);transition:transform .55s}
+.action:hover:after,.primary:hover:after,.secondary:hover:after{transform:translateX(120%)}
+.action:hover{transform:translateY(-2px);filter:brightness(1.07);box-shadow:0 16px 30px rgba(0,0,0,.34)}
+.action:active{transform:translateY(1px)}
+.lobby{background:radial-gradient(circle at 50% 20%,rgba(62,165,102,.2),transparent 34%),radial-gradient(circle at 50% 100%,rgba(244,212,123,.06),transparent 40%),rgba(1,6,3,.88)}
+.panel{position:relative;overflow:hidden}
+.panel:before{content:"";position:absolute;left:-30%;right:-30%;top:-55%;height:55%;background:radial-gradient(ellipse,rgba(244,212,123,.1),transparent 65%);pointer-events:none}
+.hero h1{font-family:Georgia,serif;font-weight:900;letter-spacing:8px;color:#fff6d5;text-shadow:0 5px 35px rgba(244,212,123,.16)}
+.hero p{letter-spacing:2px}
+.mode{position:relative;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s}
+.mode:after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 20%,rgba(244,212,123,.06) 50%,transparent 80%);transform:translateX(-100%);transition:transform .5s}
+.mode:hover:after{transform:translateX(100%)}
+.mode:hover{border-color:rgba(244,212,123,.45);box-shadow:0 18px 36px rgba(0,0,0,.3)}
+.primary,.secondary{position:relative;overflow:hidden}
+.input{transition:border-color .2s,box-shadow .2s,background .2s}
+.input:focus{border-color:rgba(244,212,123,.6)!important;box-shadow:0 0 0 3px rgba(244,212,123,.08),0 12px 25px rgba(0,0,0,.2);outline:none}
+.modal-layer{backdrop-filter:blur(10px)}
+.modal{animation:modalIn .2s ease both}
+@keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+#gameover .big{text-shadow:0 0 35px rgba(244,212,123,.25);letter-spacing:2px}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+
+
+
+/* SANI GROUP — PREMIUM MAX VISUAL SYSTEM */
+:root{
+ --gold:#f4d27a;--gold-hi:#fff0ae;--gold-deep:#8e6520;
+ --felt:#0a5632;--felt2:#052b1a;
+ --glass:rgba(5,12,8,.58);
+}
+html,body{background:#030806!important}
+#table{
+ background:
+ radial-gradient(circle at 50% 42%,rgba(64,180,106,.22),transparent 24%),
+ radial-gradient(circle at 50% 50%,rgba(12,91,53,.48),transparent 64%),
+ repeating-radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.012) 0 1px,transparent 1px 5px),
+ repeating-linear-gradient(115deg,rgba(255,255,255,.018) 0 1px,transparent 1px 7px),
+ linear-gradient(135deg,#0a5b35 0%,#073d25 45%,#041d12 100%)!important;
+}
+#table:before{content:"";position:absolute;inset:3.2%;border-radius:32px;border:1px solid rgba(244,210,122,.24);box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),inset 0 0 90px rgba(0,0,0,.52),0 0 70px rgba(0,0,0,.35);pointer-events:none}
+#table:after{inset:4.1%!important;border-color:rgba(244,210,122,.10)!important;border-radius:26px!important}
+.brand-mark{background:linear-gradient(145deg,rgba(244,210,122,.16),rgba(0,0,0,.28))!important;box-shadow:0 0 25px rgba(244,210,122,.16),inset 0 1px rgba(255,255,255,.15)!important}
+.room-pill,.status-pill{box-shadow:inset 0 1px rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.18)!important}
+.avatar{background:radial-gradient(circle at 35% 28%,#426653,#101e16 62%,#070d09)!important;border-color:rgba(244,210,122,.35)!important;box-shadow:0 9px 25px rgba(0,0,0,.45),inset 0 1px rgba(255,255,255,.12)!important}
+.avatar.bot{border-color:rgba(119,190,255,.72)!important}
+#center{filter:drop-shadow(0 18px 28px rgba(0,0,0,.16))}
+.deck-card{background:
+ repeating-linear-gradient(45deg,rgba(244,210,122,.20) 0 2px,transparent 2px 8px),
+ radial-gradient(circle at 30% 20%,#3e7ea7,#0d3151 48%,#061827)!important;
+ box-shadow:0 18px 38px rgba(0,0,0,.48),0 0 0 1px rgba(255,255,255,.08),inset 0 1px rgba(255,255,255,.18)!important}
+.deck-logo{background:radial-gradient(circle,#163f2d,#0a2418);font-weight:900;letter-spacing:-1px;box-shadow:inset 0 0 18px rgba(0,0,0,.35),0 0 18px rgba(244,210,122,.08)}
+.card{
+ background:
+ linear-gradient(115deg,rgba(255,255,255,.9),transparent 22%,transparent 75%,rgba(0,0,0,.055)),
+ radial-gradient(circle at 72% 15%,rgba(255,255,255,.75),transparent 20%),
+ linear-gradient(145deg,#fffefa,#f1eee4 70%,#ded9ca)!important;
+ border:1px solid rgba(72,57,31,.34)!important;
+ box-shadow:0 16px 30px rgba(0,0,0,.46),0 2px 0 rgba(255,255,255,.65) inset,0 -1px 0 rgba(0,0,0,.08) inset!important;
+}
+.card:before{content:"";position:absolute;inset:3px;border:1px solid rgba(0,0,0,.07);border-radius:6px;pointer-events:none}
+.card .center-suit{text-shadow:0 1px 0 rgba(255,255,255,.55),0 5px 12px rgba(0,0,0,.08)}
+.card .corner b{text-shadow:0 1px 0 rgba(255,255,255,.75)}
+.card.clickable:hover{transform:translateY(-17px) scale(1.035)!important;box-shadow:0 24px 42px rgba(0,0,0,.5),0 0 0 2px rgba(244,210,122,.52)!important}
+.card.playable{box-shadow:0 0 0 2px rgba(244,210,122,.86),0 0 22px rgba(244,210,122,.22),0 18px 38px rgba(0,0,0,.48)!important}
+.pair{filter:drop-shadow(0 10px 20px rgba(0,0,0,.18))}
+.pair .card.def{box-shadow:0 15px 30px rgba(0,0,0,.48),0 0 0 1px rgba(90,120,255,.16)!important}
+.back{background:
+ repeating-linear-gradient(45deg,rgba(244,210,122,.24) 0 2px,transparent 2px 7px),
+ repeating-linear-gradient(-45deg,rgba(244,210,122,.10) 0 1px,transparent 1px 6px),
+ radial-gradient(circle at 30% 25%,#2d6b96,#0a2944 60%,#061525)!important;
+ box-shadow:-3px 5px 10px rgba(0,0,0,.45),inset 0 1px rgba(255,255,255,.12)!important}
+#message{background:linear-gradient(180deg,rgba(9,22,14,.76),rgba(2,8,5,.66))!important;border-color:rgba(244,210,122,.16)!important;box-shadow:0 10px 28px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.06)!important}
+.actions button{box-shadow:0 9px 18px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.16)!important}
+.modal,.panel{box-shadow:0 35px 90px rgba(0,0,0,.65)!important}
+@media(max-width:800px){
+ :root{--cardw:64px;--cardh:92px}
+ #center{width:96vw;height:245px}
+ #pairs{left:78px;gap:8px}.pair{width:calc(var(--cardw) + 15px)}.pair .card.def{left:14px;top:11px}
+ .seat.left{left:5px}.seat.right{right:5px}.topbar{padding:0 9px}
+}
+
+
+/* =========================================================
+   SANI GROUP — ДУРАК PREMIUM MAX ROYALE
+   Final visual enhancement layer
+   ========================================================= */
+
+:root{
+  --royal-gold:#f6d77a;
+  --royal-gold-hi:#fff1b2;
+  --royal-gold-deep:#765016;
+  --royal-green:#0b5634;
+  --royal-green-deep:#041c12;
+  --royal-black:#030806;
+  --royal-glass:rgba(8,16,13,.74);
+  --royal-line:rgba(246,215,122,.22);
+  --royal-glow:rgba(246,215,122,.34);
+  --card-radius:13px;
+}
+
+/* Cinematic background / luxury vignette */
+html,body{
+  background:
+    radial-gradient(ellipse at 50% 25%,rgba(39,123,77,.34) 0,transparent 43%),
+    radial-gradient(ellipse at 50% 100%,rgba(198,151,54,.08) 0,transparent 48%),
+    linear-gradient(180deg,#06110b 0,#020604 100%);
+}
+body:before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:9999;
+  background:
+    radial-gradient(circle at 50% 42%,transparent 42%,rgba(0,0,0,.28) 100%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.008) 0 1px,transparent 1px 4px);
+  mix-blend-mode:normal;
+}
+body:after{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:9998;
+  opacity:.22;
+  background:
+    radial-gradient(circle at 20% 20%,#fff 0 1px,transparent 1.5px),
+    radial-gradient(circle at 75% 30%,#fff 0 1px,transparent 1.5px),
+    radial-gradient(circle at 42% 72%,#fff 0 1px,transparent 1.5px);
+  background-size:240px 210px,310px 280px,370px 330px;
+}
+
+/* Premium table */
+#table{
+  background:
+    radial-gradient(ellipse at 50% 42%,rgba(35,145,85,.28),transparent 52%),
+    radial-gradient(ellipse at center,rgba(0,0,0,.02),rgba(0,0,0,.44) 78%),
+    repeating-linear-gradient(92deg,rgba(255,255,255,.018) 0 1px,transparent 1px 6px),
+    linear-gradient(135deg,#0b5936 0,#063b25 48%,#052719 100%);
+  box-shadow:
+    inset 0 0 190px rgba(0,0,0,.62),
+    inset 0 0 0 1px rgba(255,255,255,.04),
+    0 0 100px rgba(0,0,0,.8);
+}
+#table:before{
+  opacity:.9;
+  color:rgba(246,215,122,.035);
+  text-shadow:0 0 30px rgba(246,215,122,.05);
+}
+#table:after{
+  inset:28px 20px 20px;
+  border:1px solid rgba(246,215,122,.18);
+  border-radius:42px;
+  box-shadow:
+    inset 0 0 70px rgba(0,0,0,.28),
+    0 0 0 1px rgba(0,0,0,.3),
+    0 0 55px rgba(246,215,122,.045);
+}
+
+/* Luxury glass panels */
+.room-pill,.status-pill,.player-card,.info-card,.modal,.lobby,
+.shop-item,.admin-user{
+  backdrop-filter:blur(18px) saturate(125%);
+  -webkit-backdrop-filter:blur(18px) saturate(125%);
+}
+.player-card,.info-card,.shop-item,.admin-user{
+  border-color:var(--royal-line);
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.075),transparent 34%),
+    linear-gradient(145deg,rgba(18,35,25,.92),rgba(4,11,7,.94));
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.08),
+    inset 0 -1px rgba(0,0,0,.35),
+    0 16px 38px rgba(0,0,0,.38);
+}
+
+/* Player identity */
+.avatar{
+  border-color:rgba(246,215,122,.72);
+  background:
+    radial-gradient(circle at 32% 23%,rgba(255,255,255,.18),transparent 17%),
+    radial-gradient(circle at 35% 25%,#426b50,#081810 72%);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.22),
+    inset 0 -8px 14px rgba(0,0,0,.25),
+    0 12px 28px rgba(0,0,0,.5),
+    0 0 18px rgba(246,215,122,.08);
+}
+.avatar.bot{
+  background:
+    radial-gradient(circle at 32% 23%,rgba(255,255,255,.18),transparent 17%),
+    radial-gradient(circle at 35% 25%,#31577a,#061521 72%);
+  border-color:rgba(105,183,255,.75);
+}
+.turn-ring{
+  border-color:var(--royal-gold-hi);
+  box-shadow:
+    0 0 0 3px rgba(246,215,122,.08),
+    0 0 18px rgba(246,215,122,.38),
+    0 0 40px rgba(246,215,122,.18);
+}
+@keyframes pulseRing{
+  0%,100%{transform:scale(1);opacity:.82}
+  50%{transform:scale(1.07);opacity:1}
+}
+
+/* Premium deck / trump */
+.deck-card{
+  border:1px solid rgba(246,215,122,.42);
+  background:
+    radial-gradient(circle at 35% 25%,rgba(255,255,255,.16),transparent 18%),
+    repeating-linear-gradient(45deg,rgba(246,215,122,.13) 0 2px,transparent 2px 8px),
+    linear-gradient(145deg,#244f70,#071a2b 72%);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.28),
+    inset 0 -12px 18px rgba(0,0,0,.32),
+    0 20px 38px rgba(0,0,0,.55),
+    0 0 22px rgba(246,215,122,.08);
+}
+.deck-logo{
+  color:var(--royal-gold-hi);
+  border-color:rgba(255,239,174,.82);
+  box-shadow:
+    inset 0 0 20px rgba(246,215,122,.12),
+    0 0 22px rgba(246,215,122,.14);
+}
+
+/* Playing cards — premium casino finish */
+.card{
+  width:var(--cardw);
+  height:var(--cardh);
+  border-radius:var(--card-radius);
+  border:1px solid rgba(22,18,11,.34);
+  background:
+    linear-gradient(145deg,#ffffff 0,#fbfaf6 42%,#e8e3d8 100%);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.98),
+    inset 0 -1px rgba(0,0,0,.12),
+    0 2px 0 rgba(255,255,255,.65),
+    0 18px 34px rgba(0,0,0,.46);
+  transform:translateZ(0);
+}
+.card:before{
+  content:"";
+  position:absolute;
+  inset:3px;
+  border:1px solid rgba(70,55,30,.12);
+  border-radius:calc(var(--card-radius) - 4px);
+  pointer-events:none;
+}
+.card:after{
+  content:"";
+  position:absolute;
+  inset:-30% -80%;
+  background:linear-gradient(105deg,transparent 42%,rgba(255,255,255,.55) 50%,transparent 58%);
+  transform:translateX(-55%) rotate(8deg);
+  opacity:0;
+  pointer-events:none;
+}
+.card.clickable:hover:after{
+  opacity:.55;
+  animation:cardShimmer .65s ease;
+}
+@keyframes cardShimmer{
+  from{transform:translateX(-55%) rotate(8deg)}
+  to{transform:translateX(55%) rotate(8deg)}
+}
+.card .corner{
+  top:6px;
+  left:8px;
+  z-index:2;
+  text-shadow:0 1px rgba(255,255,255,.72);
+}
+.card .corner b{
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:21px;
+  letter-spacing:-.5px;
+}
+.card .corner span{font-size:15px}
+.card .center-suit{
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:48px;
+  filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));
+}
+.card.red{color:#bd2732}
+.card.playable{
+  box-shadow:
+    0 0 0 2px rgba(246,215,122,.9),
+    0 0 0 5px rgba(246,215,122,.10),
+    0 20px 42px rgba(0,0,0,.48),
+    0 0 28px rgba(246,215,122,.18);
+}
+.card.clickable:hover{
+  transform:translateY(-19px) scale(1.045) rotate(0deg);
+  filter:brightness(1.04) saturate(1.03);
+}
+
+/* Player hand fan */
+.hand{
+  height:152px;
+  perspective:1100px;
+  filter:drop-shadow(0 18px 18px rgba(0,0,0,.22));
+}
+.hand .wrap{
+  margin-left:-36px;
+  transform-origin:50% 100%;
+  transition:transform .18s ease,filter .18s ease;
+}
+.hand .wrap:first-child{margin-left:0}
+.hand .wrap:nth-child(1){transform:rotate(-9deg) translateY(7px)}
+.hand .wrap:nth-child(2){transform:rotate(-6deg) translateY(3px)}
+.hand .wrap:nth-child(3){transform:rotate(-3deg)}
+.hand .wrap:nth-child(4){transform:rotate(3deg)}
+.hand .wrap:nth-child(5){transform:rotate(6deg) translateY(3px)}
+.hand .wrap:nth-child(6){transform:rotate(9deg) translateY(7px)}
+.hand .wrap:hover{
+  z-index:50;
+  transform:translateY(-20px) rotate(0deg) scale(1.055)!important;
+  filter:drop-shadow(0 14px 16px rgba(0,0,0,.45));
+}
+
+/* Action bar */
+.actions{
+  gap:10px;
+  margin:10px 0 8px;
+}
+.action{
+  min-width:108px;
+  height:44px;
+  border-radius:13px;
+  border:1px solid rgba(246,215,122,.16);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.02)),
+    linear-gradient(145deg,#1a2b20,#0b1710);
+  color:#f6f1df;
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.16),
+    0 12px 24px rgba(0,0,0,.32);
+}
+.action:hover:not(:disabled){
+  border-color:rgba(246,215,122,.62);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.02)),
+    linear-gradient(145deg,#24432f,#0c1c13);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.2),
+    0 15px 28px rgba(0,0,0,.38),
+    0 0 18px rgba(246,215,122,.08);
+  transform:translateY(-2px);
+}
+.action.primary,
+.action[data-action="attack"]{
+  background:linear-gradient(145deg,#176a40,#08351f);
+  border-color:rgba(82,224,145,.38);
+}
+.action.danger{
+  background:linear-gradient(145deg,#722d2d,#361313);
+  border-color:rgba(255,107,107,.35);
+}
+
+/* Premium headings / typography */
+.game-title b,.hero h1,.modal h2{
+  text-shadow:0 2px 20px rgba(0,0,0,.45);
+}
+.hero h1{
+  background:linear-gradient(180deg,#fff8dc 0,#f6d77a 48%,#a96e20 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  filter:drop-shadow(0 8px 22px rgba(0,0,0,.28));
+}
+.eyebrow{
+  text-shadow:0 0 14px rgba(246,215,122,.25);
+}
+
+/* Premium modal */
+.lobby,.modal-layer{
+  background:
+    radial-gradient(circle at 50% 42%,rgba(18,80,48,.26),transparent 40%),
+    rgba(0,0,0,.84);
+  backdrop-filter:blur(14px);
+}
+.modal{
+  border-color:rgba(246,215,122,.30);
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.055),transparent 28%),
+    linear-gradient(145deg,#112016,#050b07);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.07),
+    0 45px 120px rgba(0,0,0,.82),
+    0 0 60px rgba(246,215,122,.04);
+}
+.primary{
+  background:linear-gradient(145deg,#ffe08a 0,#e2b84e 44%,#93611c 100%);
+  border:1px solid rgba(255,238,168,.7);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.55),
+    0 10px 22px rgba(0,0,0,.32),
+    0 0 20px rgba(246,215,122,.10);
+  transition:.18s;
+}
+.primary:hover{
+  transform:translateY(-2px);
+  filter:brightness(1.06);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.65),
+    0 15px 28px rgba(0,0,0,.4),
+    0 0 28px rgba(246,215,122,.17);
+}
+
+/* Status / room pills */
+.room-pill,.status-pill{
+  border-color:rgba(246,215,122,.30);
+  color:#f8df94;
+  background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(0,0,0,.30));
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.08),
+    0 8px 24px rgba(0,0,0,.22);
+}
+
+/* Scrollbars */
+*{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(246,215,122,.45) rgba(0,0,0,.18);
+}
+*::-webkit-scrollbar{width:7px;height:7px}
+*::-webkit-scrollbar-track{background:rgba(0,0,0,.18)}
+*::-webkit-scrollbar-thumb{
+  background:linear-gradient(#f1d47b,#805719);
+  border-radius:99px;
+  border:1px solid rgba(255,255,255,.12);
+}
+
+/* Mobile premium tuning */
+@media(max-width:720px){
+  :root{--cardw:62px;--cardh:89px}
+  #table:after{inset:18px 10px 10px;border-radius:24px}
+  .hand{height:118px}
+  .hand .wrap{margin-left:-27px}
+  .hand .wrap:nth-child(1){transform:rotate(-7deg) translateY(5px)}
+  .hand .wrap:nth-child(2){transform:rotate(-4deg) translateY(2px)}
+  .hand .wrap:nth-child(5){transform:rotate(4deg) translateY(2px)}
+  .hand .wrap:nth-child(6){transform:rotate(7deg) translateY(5px)}
+  .card .corner{top:4px;left:6px}
+  .card .corner b{font-size:17px}
+  .card .corner span{font-size:11px}
+  .card .center-suit{font-size:38px}
+  .action{min-width:0;height:46px;padding:8px 9px;font-size:10px}
+  .avatar{width:48px;height:48px}
+}
+@media(max-width:420px){
+  :root{--cardw:54px;--cardh:78px}
+  .hand{height:104px}
+  .hand .wrap{margin-left:-24px}
+  .card .corner b{font-size:15px}
+  .card .corner span{font-size:10px}
+  .card .center-suit{font-size:31px}
+  .action{font-size:9px;padding:7px 6px}
+}
+
+/* Accessibility: preserve motion reduction */
+@media(prefers-reduced-motion:reduce){
+  .turn-ring,.card:after{animation:none!important}
+  .hand .wrap,.card,.action,.primary{transition:none!important}
+}

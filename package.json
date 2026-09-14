@@ -1,0 +1,8 @@
+{
+  "name":"sani-group-durak-premium",
+  "version":"1.0.0",
+  "private":true,
+  "main":"server.js",
+  "scripts":{"start":"node server.js","test":"node test/game.test.js","simulate":"node test/simulation.js"},
+  "dependencies":{"express":"^4.21.2","socket.io":"^4.8.1"}
+}
