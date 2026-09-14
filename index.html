@@ -547,7 +547,16 @@ function render(){
   $('deckCount').textContent=(state.deck||[]).length;
   $('deck').style.display=(state.deck&&state.deck.length)?'block':'none';
   $('trump').innerHTML=state.trumpCard?cardHTML(state.trumpCard):'';
-  const pairs=$('pairs');pairs.innerHTML=(state.table||[]).map(x=>`<div class="pair">${cardHTML(x.attack)}${x.defense?cardHTML(x.defense,'def'):''}</div>`).join('');
+  // DEBUG: Log table state
+  console.log('[render] table:', JSON.stringify(state.table));
+  const pairs=$('pairs');
+  if(!pairs){console.error('[render] #pairs element not found');return}
+  const tableHTML = (state.table||[]).map(x=>{
+    console.log('[render] pair:', x);
+    return `<div class="pair">${cardHTML(x.attack)}${x.defense?cardHTML(x.defense,'def'):''}</div>`;
+  }).join('');
+  console.log('[render] tableHTML:', tableHTML);
+  pairs.innerHTML = tableHTML;
   const hand=state.hands[socket.id]||[];const ranks=new Set((state.table||[]).flatMap(x=>[x.attack?.rank,x.defense?.rank].filter(Boolean)));
   const handEl=$('hand');
   if(!handEl){console.error('[render] #hand element not found');return}
