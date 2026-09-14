@@ -156,6 +156,17 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('client_ready', () => {
+    // Find room this socket belongs to and send current state
+    for (const room of Object.values(rooms)) {
+      const player = room.players.find(p => p.id === socket.id);
+      if (player && room.state) {
+        broadcastState(room);
+        break;
+      }
+    }
+  });
+
   socket.on('leave_room', (roomCode) => {
     if (!roomCode) return;
     const room = rooms[roomCode];

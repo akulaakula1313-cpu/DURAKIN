@@ -452,6 +452,9 @@ let state=null, roomCode=null, music=false, gameMode=null, voted=false, playerCo
 const bg=new Audio('./theme.mp3'); bg.loop=true; bg.volume=.28;
 const SUIT_RED=new Set(['♥','♦']);
 
+// Signal server that client is ready to receive state
+document.addEventListener('DOMContentLoaded',()=>{socket.emit('client_ready')});
+
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&','<':'<','>':'>','"':'"',"'":'&#039;'}[m]))}
 function name(){return ($('name').value.trim()||'Игрок').slice(0,12)}
@@ -494,14 +497,20 @@ socket.on('error_msg',m=>toast(m));
 socket.on('opponent_disconnected',()=>{toast('Соперник отключился');setTimeout(()=>location.reload(),900)});
 socket.on('game_update',s=>{
   try {
+    console.log('[game_update] received', s ? 'state OK' : 'state NULL', s?.roomCode, s?.table?.length, 'cards on table');
+    if(!s){console.error('Empty state received');return}
     state=s;roomCode=s.roomCode||roomCode;
     $('lobby').style.display='none';
     $('center').style.display='block';
     $('myZone').style.display='flex';
     $('statusPill').textContent='В ИГРЕ';
     if(roomCode&&!roomCode.startsWith('BOTS_')){$('roomPill').style.display='block';$('roomPill').textContent='КОМНАТА '+roomCode}
-    render();
-  } catch(e) { console.error('render error:', e); toast('Ошибка отрисовки: '+e.message); }
+    // Force reflow to ensure DOM ready
+    requestAnimationFrame(() => {
+      try { render(); console.log('[render] done'); }
+      catch(e) { console.error('[render] error:', e); toast('Ошибка отрисовки: '+e.message); }
+    });
+  } catch(e) { console.error('[game_update] error:', e); toast('Ошибка: '+e.message); }
 });
 socket.on('game_over',d=>{const win=d.winner===socket.id;$('resultBig').textContent=win?'ПОБЕДА!':'ПОРАЖЕНИЕ';$('resultText').textContent=win?'Вы выиграли партию!':'В этот раз победил соперник.';$('gameover').style.display='flex';$('rematch').disabled=false;$('rematch').style.opacity=1;voted=false});
 socket.on('rematch_voted',d=>{$('rematchStatus').textContent=`Реванш: ${d.votesCount} / ${d.totalNeeded}`});
@@ -529,8 +538,8 @@ function renderSeat(elId,p,count,turn,def){
  el.innerHTML=`<div class="profile"><div class="avatar ${p.isBot?'bot':''}">${esc(initials)}${turn?'<div class="turn-ring"></div>':''}</div><div class="name">${esc(p.name)}</div><div class="role">${def?'ЗАЩИЩАЕТСЯ':turn?'ХОДИТ':'СОПЕРНИК'}</div></div><div class="opp-hand">${backs}</div>`;
 }
 function render(){
-  if(!state)return;
-  const ps=state.playersInfo||[],my=ps.findIndex(p=>p.id===socket.id);if(my<0)return;
+  if(!state){console.warn('[render] no state');return}
+  const ps=state.playersInfo||[],my=ps.findIndex(p=>p.id===socket.id);if(my<0){console.warn('[render] player not found in state');return}
   ['seat-top','seat-left','seat-right'].forEach(id=>$(id).style.display='none');
   const others=[];for(let i=1;i<ps.length;i++)others.push({p:ps[(my+i)%ps.length],idx:(my+i)%ps.length});
   const slots=ps.length===2?['seat-top']:ps.length===3?['seat-left','seat-right']:['seat-left','seat-top','seat-right'];
@@ -541,8 +550,11 @@ function render(){
   const pairs=$('pairs');pairs.innerHTML=(state.table||[]).map(x=>`<div class="pair">${cardHTML(x.attack)}${x.defense?cardHTML(x.defense,'def'):''}</div>`).join('');
   const hand=state.hands[socket.id]||[];const ranks=new Set((state.table||[]).flatMap(x=>[x.attack?.rank,x.defense?.rank].filter(Boolean)));
   const handEl=$('hand');
-  if(!handEl){console.error('hand element not found');return}
-  handEl.innerHTML=hand.map(c=>`<div class="wrap" onclick="playCard(${c.id})">${cardHTML(c,'clickable')}</div>`).join('');
+  if(!handEl){console.error('[render] #hand element not found');return}
+  // Ensure all cards have IDs
+  const validHand = hand.filter(c => c && c.id != null);
+  if(validHand.length !== hand.length){console.warn('[render] some cards missing ID', hand);}
+  handEl.innerHTML=validHand.map(c=>`<div class="wrap" onclick="playCard(${c.id})">${cardHTML(c,'clickable')}</div>`).join('');
   // Dynamic fan layout
   const wraps=handEl.querySelectorAll('.wrap');
   const count=wraps.length;
@@ -562,19 +574,19 @@ function render(){
       w.style.transform=`rotate(${angle}deg) translateY(${y}px)`;
     });
   }
- const def=state.defenderIdx===my,att=state.attackerIdx===my,thrower=state.currentThrowerIdx===my,table=state.table||[];
- let msg='Ожидание…';
- if(def)msg='Ваша защита: выберите карту, которая бьёт атаку, или нажмите «БЕРУ».';
- else if(table.length===0&&att)msg='Ваш ход: выберите любую карту для атаки.';
- else if(table.length&&thrower)msg='Ваша очередь подкинуть карту или завершить атаку.';
- else if(table.length)msg='Идёт розыгрыш…';
- else msg='Ход соперника…';
- $('message').textContent=msg;
- $('turnLabel').textContent=def?'ВАША ЗАЩИТА':(att&&table.length===0?'ВАШ ХОД':(thrower?'ВАША АТАКА':'ХОД СОПЕРНИКА'));
- const all=table.length>0&&table.every(x=>x.defense);
- $('take').style.display=def&&table.length?'block':'none';
- $('done').style.display=!def&&all?'block':'none';
- $('pass').style.display=!def&&table.length&&thrower?'block':'none';
+  const def=state.defenderIdx===my,att=state.attackerIdx===my,thrower=state.currentThrowerIdx===my,table=state.table||[];
+  let msg='Ожидание…';
+  if(def)msg='Ваша защита: выберите карту, которая бьёт атаку, или нажмите «БЕРУ».';
+  else if(table.length===0&&att)msg='Ваш ход: выберите любую карту для атаки.';
+  else if(table.length&&thrower)msg='Ваша очередь подкинуть карту или завершить атаку.';
+  else if(table.length)msg='Идёт розыгрыш…';
+  else msg='Ход соперника…';
+  $('message').textContent=msg;
+  $('turnLabel').textContent=def?'ВАША ЗАЩИТА':(att&&table.length===0?'ВАШ ХОД':(thrower?'ВАША АТАКА':'ХОД СОПЕРНИКА'));
+  const all=table.length>0&&table.every(x=>x.defense);
+  $('take').style.display=def&&table.length?'block':'none';
+  $('done').style.display=!def&&all?'block':'none';
+  $('pass').style.display=!def&&table.length&&thrower?'block':'none';
 }
 </script>
 </body>
