@@ -481,7 +481,7 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 
 /* ============================================================
-   МОДАЛКИ (z-index поднят до 700, чтобы быть выше settings)
+   МОДАЛКИ
    ============================================================ */
 .modal-layer{
   position:absolute;inset:0;z-index:700;
@@ -582,7 +582,7 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 
 /* ============================================================
-   ЭМОДЗИ + ЧАТ
+   ЭМОДЗИ + ЧАТ (дефолт — десктоп)
    ============================================================ */
 #emojiBar{
   position:absolute;bottom:172px;left:50%;transform:translateX(-50%);
@@ -674,7 +674,7 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 
 /* ============================================================
-   ТАЙМЕР ХОДА (без transition — управляется rAF)
+   ТАЙМЕР ХОДА
    ============================================================ */
 .turn-timer{
   height:3px;border-radius:2px;background:var(--accent);
@@ -682,7 +682,7 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 
 /* ============================================================
-   АДАПТИВ
+   АДАПТИВ — ПЛАНШЕТ / МОБИЛЬНЫЙ
    ============================================================ */
 @media(max-width:900px){
   :root{--cw:64px;--ch:92px}
@@ -696,12 +696,101 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   .seat.right{right:5px}
   .topbar{padding:0 10px}
   .brand-name{display:none}
+
+  /* ===== ЧАТ — круглая FAB-кнопка в левом верхнем углу ===== */
+  #chat{
+    top: 68px;
+    left: 8px;
+    right: auto;
+    bottom: auto;
+    width: 46px;
+    height: 46px;
+    max-height: 46px;
+    padding: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    transition: width .25s, height .25s, border-radius .25s, padding .25s;
+  }
+  #chat .chat-head{
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+  #chat .chat-head b{
+    font-size: 0;
+    line-height: 1;
+  }
+  #chat .chat-head b::before{
+    content: '💬';
+    font-size: 22px;
+    display: block;
+  }
+  #chat .chat-head > span{ display: none; }
+  #chat .chat-body{ display: none; }
+
+  /* Раскрытая панель */
+  #chat:not(.collapsed){
+    width: min(280px, 82vw);
+    height: auto;
+    max-height: 70vh;
+    padding: 10px;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  #chat:not(.collapsed) .chat-head{
+    width: auto;
+    height: auto;
+    padding: 0 4px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #chat:not(.collapsed) .chat-head b{
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  #chat:not(.collapsed) .chat-head b::before{
+    content: '💬 ';
+    font-size: 12px;
+  }
+  #chat:not(.collapsed) .chat-head > span{
+    font-size: 0;
+    display: inline;
+  }
+  #chat:not(.collapsed) .chat-head > span::before{
+    content: '✕';
+    font-size: 14px;
+    color: var(--accent);
+  }
+  #chat:not(.collapsed) .chat-body{ display: flex; }
+
+  /* ===== ЭМОДЗИ — вертикальная колонка в правом верхнем углу ===== */
+  #emojiBar{
+    top: 68px;
+    right: 8px;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    flex-direction: column;
+    padding: 5px 4px;
+    gap: 2px;
+    border-radius: 22px;
+  }
+  .emoji-btn{
+    width: 32px;
+    height: 32px;
+    font-size: 17px;
+  }
 }
+
+/* ===== Маленькие телефоны ===== */
 @media(max-width:520px){
   :root{--cw:52px;--ch:76px}
-  .hand{height:106px}
+  .hand{height:112px}
   .hand .wrap{margin-left:-23px}
-  .my-zone{bottom:0}
+  .my-zone{bottom:6px}
   .action{padding:8px 10px;min-width:0;font-size:10px}
   #message{font-size:10px;padding:6px 12px}
   .card .corner b{font-size:15px}
@@ -709,8 +798,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   .hero h1{font-size:30px;letter-spacing:3px}
   .panel{padding:22px}
   .modal{padding:20px}
-  #emojiBar{bottom:142px}
-  #chat{width:220px}
 }
 </style>
 </head>

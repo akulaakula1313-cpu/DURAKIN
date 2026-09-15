@@ -737,10 +737,6 @@ function createApp() {
     cors: { origin: allowedOrigin, methods: ['GET', 'POST'] },
     pingTimeout: 60000, pingInterval: 25000
   });
-
-  // Health-check для Render — отвечает мгновенно, до всех middleware
-  app.get('/health', (req, res) => res.status(200).type('text').send('OK'));
-
   app.use(express.static(__dirname));
   app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   socketServer.on('connection', attachHandlers);
@@ -751,7 +747,7 @@ if (require.main === module) {
   const { httpServer, socketServer } = createApp();
   setIO(socketServer);
   const PORT = process.env.PORT || 3000;
-  httpServer.listen(PORT, '0.0.0.0', () => console.log(`[Сервер] слушает на порту ${PORT}`));
+  httpServer.listen(PORT, () => console.log(`[Сервер] http://localhost:${PORT}`));
 }
 
 module.exports = {
