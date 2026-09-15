@@ -737,6 +737,10 @@ function createApp() {
     cors: { origin: allowedOrigin, methods: ['GET', 'POST'] },
     pingTimeout: 60000, pingInterval: 25000
   });
+
+  // Health-check для Render — отвечает мгновенно, до всех middleware
+  app.get('/health', (req, res) => res.status(200).type('text').send('OK'));
+
   app.use(express.static(__dirname));
   app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   socketServer.on('connection', attachHandlers);
