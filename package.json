@@ -1,20 +1,16 @@
 {
   "name": "sani-group-durak-premium",
-  "version": "2.1.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Онлайн «Подкидной дурак» на Node.js + Socket.IO — SANI GROUP Premium Edition",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "test": "node test/game.test.js",
+    "test:deep": "node test/deep.test.js",
+    "simulate": "node test/simulation.js"
   },
   "dependencies": {
     "express": "^4.21.2",
     "socket.io": "^4.8.1"
-  },
-  "author": "SANI GROUP",
-  "license": "UNLICENSED"
+  }
 }
