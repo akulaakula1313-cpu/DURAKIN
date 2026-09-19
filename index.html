@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Дурак — SANI GROUP Premium</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a5b35'/><text x='50' y='75' font-size='70' text-anchor='middle' fill='%23f4d27a'>♠</text></svg>">
 <script src="/socket.io/socket.io.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Cinzel:wght@600;800&display=swap" rel="stylesheet">
@@ -1585,6 +1586,14 @@ loadSettings();
 $('code').addEventListener('input', e => {
   e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
 });
+['click', 'touchstart', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, () => {
+    try {
+      const c = ac();
+      if (c.state === 'suspended') c.resume();
+    } catch {}
+  }, { once: true, passive: true })
+);
 socket.emit('client_ready');
 </script>
 </body>
