@@ -1,0 +1,18 @@
+SANI GROUP — ДУРАК SIGNATURE ULTRA
+QA / DESIGN PASS — 10.09.2026
+
+✓ 36-card deck, unique IDs; 6 cards per player.
+✓ Trump and lowest-trump opening attacker.
+✓ Server-side same-suit/trump beating validation.
+✓ Throw-in ranks validated; attack capped at 6 and defender capacity.
+✓ Take / successful defense rotation / incomplete-defense protection.
+✓ Bot mode hard-limited to 1 human + 1 bot.
+✓ Online rooms support 2/3/4 players and do not auto-replace players with bots.
+✓ Online rematch requires all humans; bot rematch can restart immediately.
+✓ Server and client JavaScript syntax checks PASS.
+✓ 500 randomized deck/uniqueness checks PASS.
+✓ Premium casino/felt visuals, layered lighting, improved cards, active-turn glow,
+  glass HUD, polished buttons/modals, cinematic micro-animations and responsive mobile layout.
+✓ No external card-image API dependency.
+
+NOTE: classic 36-card podkidnoy Durak rules; house/regional variants may differ.
