@@ -1,101 +1,63 @@
-'use strict';
+/**
+ * SANI GROUP — ДУРАК PREMIUM
+ * Серверная логика (Express + Socket.IO)
+ */
 
-const path = require('path');
-const http = require('http');
 const express = require('express');
+const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: true, credentials: true } });
-
-const PORT = Number(process.env.PORT || 3000);
-const TURN_MS = 30_000;
-const ROOM_TTL_MS = 5 * 60_000;
-const REMATCH_TTL_MS = 60_000;
-const MAX_MESSAGE = 150;
-const MAX_NAME = 12;
-
-// Serve the supplied client as the application entry point.
-app.use(express.static(__dirname));
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'sani-group-durak' }));
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
-const rooms = new Map();
-const socketRoom = new Map();
-const playerSessions = new Map();
-
 const RANKS = [
-  ['6', 6], ['7', 7], ['8', 8], ['9', 9], ['10', 10],
-  ['J', 11], ['Q', 12], ['K', 13], ['A', 14]
+  { rank: 6, value: 6 }, { rank: 7, value: 7 }, { rank: 8, value: 8 },
+  { rank: 9, value: 9 }, { rank: 10, value: 10 }, { rank: 'J', value: 11 },
+  { rank: 'Q', value: 12 }, { rank: 'K', value: 13 }, { rank: 'A', value: 14 }
 ];
 const SUITS = ['♠', '♥', '♦', '♣'];
 
-function makeDeck() {
-  let id = 1;
+let io = null;
+const rooms = {};
+
+function setIO(instance) { io = instance; }
+function getIO() {
+  if (!io) throw new Error('Socket.IO not initialized');
+  return io;
+}
+
+function createDeck() {
   const deck = [];
-  for (const suit of SUITS) {
-    for (const [rank, value] of RANKS) deck.push({ id: id++, suit, rank, value });
-  }
-  return shuffle(deck);
-}
-
-function shuffle(a) {
-  const x = [...a];
-  for (let i = x.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [x[i], x[j]] = [x[j], x[i]];
-  }
-  return x;
-}
-
-function safeName(v) {
-  return String(v || 'Игрок').replace(/[<>]/g, '').trim().slice(0, MAX_NAME) || 'Игрок';
-}
-function roomKey(code) { return String(code); }
-function uniqueRoomCode() {
-  for (let i = 0; i < 1000; i++) {
-    const code = String(Math.floor(1000 + Math.random() * 9000));
-    if (!rooms.has(code)) return code;
-  }
-  throw new Error('Не удалось создать код комнаты');
-}
-function activePlayers(room) { return room.players.filter(p => !p.eliminated); }
-function nextIdx(room, from, { includeFrom = false, predicate = () => true } = {}) {
-  const n = room.players.length;
-  for (let step = includeFrom ? 0 : 1; step <= n; step++) {
-    const idx = (from + step) % n;
-    const p = room.players[idx];
-    if (p && !p.eliminated && predicate(p, idx)) return idx;
-  }
-  return -1;
-}
-function playerBySocket(room, socketId) { return room.players.find(p => p.socketId === socketId); }
-function idxBySocket(room, socketId) { return room.players.findIndex(p => p.socketId === socketId); }
-function getPlayer(room, idx) { return room.players[idx]; }
-function isHuman(p) { return !!p && !p.isBot; }
-
-function lowestTrumpPlayer(room) {
-  let best = null;
-  for (const p of room.players) {
-    if (p.eliminated) continue;
-    for (const c of p.hand) {
-      if (c.suit !== room.trumpSuit) continue;
-      if (!best || c.value < best.value) best = { idx: p.idx, value: c.value };
+  let id = 0;
+  for (const s of SUITS) {
+    for (const r of RANKS) {
+      deck.push({ id: id++, suit: s, rank: r.rank, value: r.value });
     }
   }
-  if (best) return best.idx;
-  let fallback = null;
-  for (const p of room.players) {
-    if (p.eliminated || !p.hand.length) continue;
-    const c = p.hand.reduce((a, b) => a.value < b.value ? a : b);
-    if (!fallback || c.value < fallback.value) fallback = { idx: p.idx, value: c.value };
+  return deck;
+}
+
+function shuffleDeck(deck) {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
   }
-  return fallback ? fallback.idx : 0;
+  return deck;
+}
+
+function sortHand(hand, trumpSuit, mode = 'trump-right') {
+  hand.sort((a, b) => {
+    const aT = a.suit === trumpSuit ? 1 : 0;
+    const bT = b.suit === trumpSuit ? 1 : 0;
+    if (mode === 'trump-left') {
+      if (aT !== bT) return bT - aT;
+    } else {
+      if (aT !== bT) return aT - bT;
+    }
+    if (a.suit !== b.suit) return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit);
+    return a.value - b.value;
+  });
 }
 
 function canBeat(att, def, trumpSuit) {
-  if (!att || !def) return false;
   const aT = att.suit === trumpSuit;
   const dT = def.suit === trumpSuit;
   if (aT && !dT) return false;
@@ -104,702 +66,787 @@ function canBeat(att, def, trumpSuit) {
   return true;
 }
 
-function tableRanks(room) {
-  const set = new Set();
-  for (const pair of room.table) {
-    if (pair.attack) set.add(pair.attack.rank);
-    if (pair.defense) set.add(pair.defense.rank);
+function getTableRanks(table) {
+  const r = new Set();
+  for (const p of table) {
+    r.add(p.attack.rank);
+    if (p.defense) r.add(p.defense.rank);
   }
-  return set;
-}
-function allDefended(room) {
-  return room.table.length > 0 && room.table.every(x => x.defense);
-}
-function uncoveredPair(room) { return room.table.find(x => !x.defense); }
-function attackLimit(room) {
-  const defender = getPlayer(room, room.defenderIdx);
-  return Math.min(6, defender ? defender.hand.length : 6);
-}
-function eligibleThrowers(room) {
-  return room.players.filter((p, idx) => !p.eliminated && idx !== room.defenderIdx && p.hand.length > 0);
-}
-function nextThrower(room, from) {
-  const n = room.players.length;
-  for (let step = 1; step <= n; step++) {
-    const idx = (from + step) % n;
-    const p = room.players[idx];
-    if (!p || p.eliminated || idx === room.defenderIdx || !p.hand.length) continue;
-    if (!room.passed.has(idx)) return idx;
-  }
-  return -1;
+  return r;
 }
 
-function resetTurnTimer(room) {
-  clearTimeout(room.turnTimer);
-  room.turnStartedAt = Date.now();
-  room.turnTimer = setTimeout(() => autoTimeout(room), TURN_MS + 50);
+function countDefendedPairs(table) {
+  return table.filter(p => p.defense !== null).length;
 }
 
-function clearTurnTimer(room) {
-  clearTimeout(room.turnTimer);
-  room.turnTimer = null;
-}
-
-function emitError(socket, msg) { socket.emit('error_msg', String(msg)); }
-function broadcastRoom(room, event, payload) { io.to(room.code).emit(event, payload); }
-
-function publicState(room, socketId) {
-  const myIdx = idxBySocket(room, socketId);
+function initGameState(room) {
+  const deck = shuffleDeck(createDeck());
+  const trumpCard = deck[deck.length - 1];
+  const trumpSuit = trumpCard.suit;
   const hands = {};
+
   for (const p of room.players) {
-    if (p.socketId === socketId) hands[p.id] = p.hand.map(cloneCard);
-    else hands[p.id] = Array(p.hand.length).fill(null);
+    hands[p.id] = deck.splice(0, 6);
+    sortHand(hands[p.id], trumpSuit);
   }
-  return {
-    roomCode: room.code,
-    sessionId: room.players[myIdx]?.sessionId || null,
-    playersInfo: room.players.map((p, idx) => ({
-      id: p.id,
-      name: p.name,
-      isBot: !!p.isBot,
-      isYou: idx === myIdx,
-      eliminated: !!p.eliminated
-    })),
-    hands,
-    handCounts: Object.fromEntries(room.players.map(p => [p.id, p.hand.length])),
-    deck: room.deck.map(cloneCard),
-    trumpCard: room.trumpCard ? cloneCard(room.trumpCard) : null,
-    trumpSuit: room.trumpSuit,
-    table: room.table.map(pair => ({ attack: cloneCard(pair.attack), defense: pair.defense ? cloneCard(pair.defense) : null })),
-    currentThrowerIdx: room.currentThrowerIdx,
-    defenderIdx: room.defenderIdx,
-    pendingTake: room.pendingTake,
-    isGameOver: room.isGameOver,
-    turnStartedAt: room.turnStartedAt,
-    moveLog: room.moveLog.slice(-100),
-    round: room.round,
-    phase: room.phase,
-    myIdx,
-    finished: room.finishOrder.slice()
-  };
-}
-function cloneCard(c) { return c ? { id: c.id, suit: c.suit, rank: c.rank, value: c.value } : null; }
 
-function sendState(room) {
-  for (const p of room.players) {
-    if (p.socketId && io.sockets.sockets.get(p.socketId)) {
-      io.to(p.socketId).emit('game_update', publicState(room, p.socketId));
+  let firstIdx = 0;
+  let minV = Infinity;
+  let foundTrump = false;
+  room.players.forEach((p, idx) => {
+    const trumps = hands[p.id].filter(c => c.suit === trumpSuit);
+    for (const c of trumps) {
+      if (c.value < minV) { minV = c.value; firstIdx = idx; foundTrump = true; }
     }
-  }
-}
-
-function logMove(room, text) {
-  room.moveLog.push({ at: Date.now(), text });
-  if (room.moveLog.length > 200) room.moveLog.shift();
-}
-
-function addCard(room, player, card) {
-  player.hand.push(card);
-}
-function removeCard(player, cardId) {
-  const i = player.hand.findIndex(c => c.id === Number(cardId));
-  if (i < 0) return null;
-  return player.hand.splice(i, 1)[0];
-}
-
-function drawToSix(room) {
-  if (!room.deck.length) return;
-  // Common Durak draw order: starting attacker first, defender last.
-  const order = [];
-  const start = room.nextAttackerIdx >= 0 ? room.nextAttackerIdx : room.currentThrowerIdx;
-  if (start >= 0) {
-    for (let step = 0; step < room.players.length; step++) {
-      const idx = (start + step) % room.players.length;
-      if (!room.players[idx].eliminated) order.push(idx);
-    }
-  }
-  for (const idx of order) {
-    const p = room.players[idx];
-    while (p.hand.length < 6 && room.deck.length) addCard(room, p, room.deck.shift());
-  }
-}
-
-function markFinished(room) {
-  if (room.deck.length > 0) return;
-  for (const p of room.players) {
-    if (!p.eliminated && p.hand.length === 0 && !room.finishOrder.includes(p.idx)) {
-      room.finishOrder.push(p.idx);
-      p.finishedAt = Date.now();
-    }
-  }
-  const remaining = room.players.filter(p => !p.eliminated && p.hand.length > 0);
-  if (remaining.length <= 1) finishGame(room);
-  else if (remaining.length === 0) finishGame(room);
-}
-
-function finishGame(room) {
-  if (room.isGameOver) return;
-  room.isGameOver = true;
-  room.phase = 'game_over';
-  clearTurnTimer(room);
-  const remaining = room.players.filter(p => p.hand.length > 0 && !p.eliminated);
-  const winners = room.players.filter(p => p.hand.length === 0).map(p => p.id);
-  const losers = remaining.map(p => p.id);
-  if (!winners.length) {
-    const last = room.finishOrder[room.finishOrder.length - 1];
-    if (last != null) winners.push(room.players[last].id);
-  }
-  room.result = { winners, losers, finishOrder: room.finishOrder.map(i => room.players[i].id) };
-  broadcastRoom(room, 'game_over', room.result);
-  sendState(room);
-  room.rematchVotes.clear();
-  room.rematchExpiresAt = Date.now() + REMATCH_TTL_MS;
-  clearTimeout(room.rematchTimer);
-  let left = Math.ceil(REMATCH_TTL_MS / 1000);
-  const countdown = setInterval(() => {
-    if (!room.isGameOver || !rooms.has(room.code)) return clearInterval(countdown);
-    left -= 1;
-    if (left > 0 && left % 5 === 0) broadcastRoom(room, 'rematch_timer', left);
-  }, 1000);
-  room.rematchTimer = setTimeout(() => {
-    clearInterval(countdown);
-    if (!room.isGameOver) return;
-    broadcastRoom(room, 'room_expired');
-    deleteRoom(room.code);
-  }, REMATCH_TTL_MS);
-}
-
-function prepareNextRound(room) {
-  // Finished players are no longer part of the active rotation once the deck is empty.
-  markFinished(room);
-  if (room.isGameOver) return;
-
-  room.table = [];
-  room.pendingTake = false;
-  room.passed.clear();
-  room.round += 1;
-  room.phase = 'attack';
-
-  drawToSix(room);
-  markFinished(room);
-  if (room.isGameOver) return;
-
-  const nextAttacker = room.nextAttackerIdx >= 0 && !room.players[room.nextAttackerIdx].eliminated
-    ? room.nextAttackerIdx
-    : nextIdx(room, room.defenderIdx);
-  room.currentThrowerIdx = nextAttacker >= 0 ? nextAttacker : lowestTrumpPlayer(room);
-  room.defenderIdx = nextIdx(room, room.currentThrowerIdx);
-  if (room.defenderIdx < 0) return finishGame(room);
-  resetTurnTimer(room);
-  sendState(room);
-  scheduleBot(room);
-}
-
-function completeSuccessfulDefense(room) {
-  const oldDef = room.defenderIdx;
-  // Defender becomes the next attacker; the player to their left becomes defender.
-  room.nextAttackerIdx = oldDef;
-  room.table = [];
-  room.pendingTake = false;
-  room.passed.clear();
-  room.currentThrowerIdx = oldDef;
-  room.defenderIdx = nextIdx(room, oldDef);
-  room.phase = 'attack';
-  if (room.defenderIdx < 0) return finishGame(room);
-  drawToSix(room);
-  markFinished(room);
-  if (room.isGameOver) return;
-  resetTurnTimer(room);
-  logMove(room, 'Раунд завершён: отбито');
-  sendState(room);
-  scheduleBot(room);
-}
-
-function defenderTake(room) {
-  const def = getPlayer(room, room.defenderIdx);
-  if (!def) return;
-  for (const pair of room.table) {
-    if (pair.attack) def.hand.push(pair.attack);
-    if (pair.defense) def.hand.push(pair.defense);
-  }
-  room.pendingTake = true;
-  room.phase = 'take';
-  room.passed.clear();
-  // Allow every non-defender with cards to throw in; rotate from the original attacker.
-  room.currentThrowerIdx = nextIdx(room, room.defenderIdx, { predicate: p => !p.eliminated && p.hand.length > 0 });
-  resetTurnTimer(room);
-  logMove(room, `${def.name} — БЕРУ`);
-  sendState(room);
-  scheduleBot(room);
-}
-
-function finishTakePhase(room) {
-  // All remaining table cards are discarded after the defender takes them.
-  room.table = [];
-  room.pendingTake = false;
-  room.passed.clear();
-  room.nextAttackerIdx = nextIdx(room, room.defenderIdx);
-  room.currentThrowerIdx = room.nextAttackerIdx;
-  room.defenderIdx = nextIdx(room, room.currentThrowerIdx);
-  room.phase = 'attack';
-  drawToSix(room);
-  markFinished(room);
-  if (room.isGameOver) return;
-  resetTurnTimer(room);
-  logMove(room, 'Подкидывание после БЕРУ завершено');
-  sendState(room);
-  scheduleBot(room);
-}
-
-function playCard(room, p, cardId) {
-  if (room.isGameOver) throw new Error('Партия уже завершена');
-  const idx = p.idx;
-  if (idx === room.defenderIdx) {
-    const pair = uncoveredPair(room);
-    if (!pair) throw new Error('Сейчас нельзя отбиваться');
-    const card = p.hand.find(c => c.id === Number(cardId));
-    if (!card) throw new Error('Карта не найдена');
-    if (!canBeat(pair.attack, card, room.trumpSuit)) throw new Error('Этой картой нельзя отбить');
-    removeCard(p, card.id);
-    pair.defense = card;
-    room.phase = 'defense';
-    logMove(room, `${p.name} отбился ${card.rank}${card.suit}`);
-    if (allDefended(room)) {
-      room.currentThrowerIdx = nextIdx(room, room.currentThrowerIdx, { predicate: (q, qidx) => qidx !== room.defenderIdx && q.hand.length > 0 });
-      if (room.currentThrowerIdx < 0) return completeSuccessfulDefense(room);
-      room.passed.clear();
-      room.phase = 'throw';
-    } else {
-      room.currentThrowerIdx = room.defenderIdx;
-    }
-    resetTurnTimer(room);
-    sendState(room);
-    scheduleBot(room);
-    return;
+  });
+  if (!foundTrump) {
+    firstIdx = Math.floor(Math.random() * room.players.length);
   }
 
-  const card = p.hand.find(c => c.id === Number(cardId));
-  if (!card) throw new Error('Карта не найдена');
-  const ranks = tableRanks(room);
-  if (room.table.length === 0) {
-    if (idx !== room.currentThrowerIdx) throw new Error('Сейчас ходит другой игрок');
-    removeCard(p, card.id);
-    room.table.push({ attack: card, defense: null });
-    room.phase = 'defense';
-    logMove(room, `${p.name} атакует ${card.rank}${card.suit}`);
-    resetTurnTimer(room);
-    sendState(room);
-    scheduleBot(room);
-    return;
-  }
+  const n = room.players.length;
+  const defIdx = (firstIdx + 1) % n;
 
-  if (!allDefended(room) && !room.pendingTake) throw new Error('Сначала защитник должен отбиться или взять');
-  if (idx === room.defenderIdx) throw new Error('Защищающийся не подкидывает');
-  if (idx !== room.currentThrowerIdx) throw new Error('Сейчас подкидывает другой игрок');
-  if (room.table.length >= attackLimit(room)) throw new Error('Достигнут лимит подкидывания');
-  if (!ranks.has(card.rank)) throw new Error('Можно подкинуть только карту подходящего достоинства');
-
-  removeCard(p, card.id);
-  room.table.push({ attack: card, defense: null });
-  room.pendingTake = false;
-  room.phase = 'defense';
-  room.passed.clear();
-  room.currentThrowerIdx = room.defenderIdx;
-  logMove(room, `${p.name} подкинул ${card.rank}${card.suit}`);
-  resetTurnTimer(room);
-  sendState(room);
-  scheduleBot(room);
-}
-
-function pass(room, p) {
-  if (room.isGameOver) return;
-  const idx = p.idx;
-  if (idx === room.defenderIdx) throw new Error('Защищающийся не может пасовать');
-  if (!room.table.length) throw new Error('Нечего завершать');
-  if (!allDefended(room) && !room.pendingTake) throw new Error('Сначала нужно отбиться или взять');
-  if (idx !== room.currentThrowerIdx) throw new Error('Сейчас очередь другого игрока');
-  room.passed.add(idx);
-  const next = nextThrower(room, idx);
-  if (next >= 0) {
-    room.currentThrowerIdx = next;
-    resetTurnTimer(room);
-    sendState(room);
-    scheduleBot(room);
-    return;
-  }
-  if (room.pendingTake) finishTakePhase(room);
-  else completeSuccessfulDefense(room);
-}
-
-function done(room, p) {
-  // In 2-player mode this is equivalent to passing after a fully defended table.
-  // In multiplayer it passes the current thrower's chance, preserving other players' turns.
-  pass(room, p);
-}
-
-function autoTimeout(room) {
-  if (room.isGameOver) return;
-  const p = getPlayer(room, room.currentThrowerIdx);
-  if (!p) return;
-  try {
-    if (room.defenderIdx === p.idx && uncoveredPair(room)) defenderTake(room);
-    else if (room.table.length && (allDefended(room) || room.pendingTake)) pass(room, p);
-    else if (!room.table.length) {
-      const card = chooseBotCard(room, p, true);
-      if (card) playCard(room, p, card.id);
-    }
-  } catch (e) {
-    logMove(room, `Автоход: ${e.message}`);
-    resetTurnTimer(room);
-    sendState(room);
-    scheduleBot(room);
-  }
-}
-
-function chooseBotCard(room, p, attackFirst = false) {
-  const hand = [...p.hand];
-  if (room.defenderIdx === p.idx) {
-    const pair = uncoveredPair(room);
-    if (!pair) return null;
-    const legal = hand.filter(c => canBeat(pair.attack, c, room.trumpSuit));
-    if (!legal.length) return null;
-    if (p.difficulty === 'easy') return legal[Math.floor(Math.random() * legal.length)];
-    legal.sort((a, b) => (a.suit === room.trumpSuit) - (b.suit === room.trumpSuit) || a.value - b.value);
-    return p.difficulty === 'hard' ? legal[0] : legal[Math.min(1, legal.length - 1)];
-  }
-  if (!room.table.length) {
-    hand.sort((a, b) => (a.suit === room.trumpSuit) - (b.suit === room.trumpSuit) || a.value - b.value);
-    if (p.difficulty === 'easy') return hand[Math.floor(Math.random() * hand.length)];
-    return hand[0];
-  }
-  const ranks = tableRanks(room);
-  const legal = hand.filter(c => ranks.has(c.rank) && room.table.length < attackLimit(room));
-  if (!legal.length) return null;
-  legal.sort((a, b) => (a.suit === room.trumpSuit) - (b.suit === room.trumpSuit) || a.value - b.value);
-  return p.difficulty === 'hard' ? legal[0] : legal[Math.min(1, legal.length - 1)];
-}
-
-function scheduleBot(room) {
-  if (room.isGameOver) return;
-  const p = getPlayer(room, room.currentThrowerIdx);
-  if (!p || !p.isBot) return;
-  clearTimeout(room.botTimer);
-  room.botTimer = setTimeout(() => botAct(room), 450 + Math.random() * 650);
-}
-function botAct(room) {
-  if (room.isGameOver) return;
-  const p = getPlayer(room, room.currentThrowerIdx);
-  if (!p || !p.isBot) return;
-  try {
-    if (p.idx === room.defenderIdx) {
-      const c = chooseBotCard(room, p);
-      if (c) playCard(room, p, c.id);
-      else defenderTake(room);
-      return;
-    }
-    const c = chooseBotCard(room, p);
-    if (c) playCard(room, p, c.id);
-    else pass(room, p);
-  } catch (e) {
-    logMove(room, `Бот: ${e.message}`);
-    try { pass(room, p); } catch { resetTurnTimer(room); }
-  }
-}
-
-function startGame(room) {
-  if (room.started || room.players.length < 2) return;
-  room.started = true;
-  room.isGameOver = false;
-  room.deck = makeDeck();
-  room.trumpCard = room.deck[room.deck.length - 1];
-  room.trumpSuit = room.trumpCard.suit;
-  room.table = [];
-  room.moveLog = [];
-  room.finishOrder = [];
-  room.round = 1;
-  room.pendingTake = false;
-  room.passed.clear();
-  for (const p of room.players) p.hand = [];
-  for (let i = 0; i < 6; i++) {
-    for (const p of room.players) p.hand.push(room.deck.shift());
-  }
-  room.currentThrowerIdx = lowestTrumpPlayer(room);
-  room.nextAttackerIdx = room.currentThrowerIdx;
-  room.defenderIdx = nextIdx(room, room.currentThrowerIdx);
-  room.phase = 'attack';
-  resetTurnTimer(room);
-  logMove(room, `Партия началась. Козырь ${room.trumpSuit}`);
-  sendState(room);
-  scheduleBot(room);
-}
-
-function makeRoom(code, maxPlayers) {
-  return {
-    code,
-    maxPlayers: Math.max(2, Math.min(4, Number(maxPlayers) || 2)),
-    players: [],
-    started: false,
-    isGameOver: false,
-    deck: [],
-    trumpCard: null,
-    trumpSuit: null,
+  room.state = {
+    roomCode: room.id,
+    deck, trumpCard, trumpSuit, hands,
     table: [],
-    currentThrowerIdx: -1,
-    defenderIdx: -1,
-    nextAttackerIdx: -1,
-    pendingTake: false,
-    phase: 'lobby',
-    turnStartedAt: 0,
-    turnTimer: null,
-    botTimer: null,
+    attackerIdx: firstIdx,
+    defenderIdx: defIdx,
+    currentThrowerIdx: firstIdx,
+    playersInfo: room.players.map(p => ({
+      id: p.id, name: p.name, isBot: !!p.isBot,
+      botDifficulty: p.botDifficulty || 'normal'
+    })),
+    isGameOver: false,
+    winners: [],
+    loser: null,
+    turnStartedAt: Date.now(),
     moveLog: [],
-    passed: new Set(),
-    finishOrder: [],
-    rematchVotes: new Set(),
-    rematchTimer: null,
-    lastActivity: Date.now(),
-    round: 0
+    pendingTake: false,
+    pendingTakePassed: []
   };
+  room.rematchVotes.clear();
 }
 
-function joinRoom(socket, room, name, isBot = false, difficulty = 'normal') {
-  if (room.started) throw new Error('Партия уже началась');
-  if (room.players.length >= room.maxPlayers) throw new Error('Комната заполнена');
-  const p = {
-    id: `${isBot ? 'bot' : 'p'}_${Math.random().toString(36).slice(2, 10)}`,
-    socketId: isBot ? null : socket.id,
-    sessionId: isBot ? null : Math.random().toString(36).slice(2) + Date.now().toString(36),
-    name: safeName(name),
-    isBot,
-    difficulty,
-    hand: [],
-    idx: room.players.length,
-    eliminated: false,
-    finishedAt: null
-  };
-  room.players.push(p);
-  if (!isBot) {
-    socketRoom.set(socket.id, room.code);
-    playerSessions.set(p.sessionId, { roomCode: room.code, playerId: p.id });
-    socket.join(room.code);
+function logMove(state, text) {
+  state.moveLog.push({ t: Date.now(), text });
+  if (state.moveLog.length > 60) state.moveLog.shift();
+}
+
+function handlePlayCard(room, pId, cardId) {
+  const state = room.state;
+  const hand = state.hands[pId];
+  if (!hand) { getIO().to(pId).emit('error_msg', 'Нет карт на руке'); return false; }
+  const idx = hand.findIndex(c => c.id === cardId);
+  if (idx === -1) { getIO().to(pId).emit('error_msg', 'Карта не найдена'); return false; }
+
+  const card = hand[idx];
+  const defId = state.playersInfo[state.defenderIdx].id;
+  const attId = state.playersInfo[state.attackerIdx].id;
+  const pIdx = state.playersInfo.findIndex(p => p.id === pId);
+  const pName = state.playersInfo[pIdx].name;
+
+  if (state.pendingTake) {
+    if (pId === defId) {
+      getIO().to(pId).emit('error_msg', 'Вы уже взяли — ждём подкидывания');
+      return false;
+    }
+    if (pIdx !== state.currentThrowerIdx) {
+      getIO().to(pId).emit('error_msg', 'Сейчас не ваша очередь');
+      return false;
+    }
+    const ranks = getTableRanks(state.table);
+    if (!ranks.has(card.rank)) {
+      getIO().to(pId).emit('error_msg', 'Такого достоинства нет на столе');
+      return false;
+    }
+    const defLen = (state.hands[defId] || []).length;
+    if (state.table.length >= Math.min(6, defLen)) {
+      getIO().to(pId).emit('error_msg', 'Больше подкидывать нельзя');
+      return false;
+    }
+    hand.splice(idx, 1);
+    state.table.push({ attack: card, defense: null, attackerId: pId });
+    logMove(state, `${pName}: подкинул ${card.rank}${card.suit}`);
+    state.turnStartedAt = Date.now();
+    return true;
   }
-  room.lastActivity = Date.now();
-  return p;
-}
 
-function deleteRoom(code) {
-  const room = rooms.get(code);
-  if (!room) return;
-  clearTurnTimer(room);
-  clearTimeout(room.botTimer);
-  clearTimeout(room.rematchTimer);
-  for (const p of room.players) {
-    if (p.socketId) socketRoom.delete(p.socketId);
-    if (p.sessionId) playerSessions.delete(p.sessionId);
+  if (pId === defId) {
+    if (state.table.length === 0) {
+      getIO().to(pId).emit('error_msg', 'Стол пуст'); return false;
+    }
+    const unIdx = state.table.findIndex(p => p.defense === null);
+    if (unIdx === -1) {
+      getIO().to(pId).emit('error_msg', 'Всё уже отбито'); return false;
+    }
+    const attCard = state.table[unIdx].attack;
+    if (!canBeat(attCard, card, state.trumpSuit)) {
+      getIO().to(pId).emit('error_msg', 'Карта не бьёт атаку'); return false;
+    }
+    hand.splice(idx, 1);
+    state.table[unIdx].defense = card;
+    logMove(state, `${pName}: отбил ${attCard.rank}${attCard.suit} → ${card.rank}${card.suit}`);
+    state.turnStartedAt = Date.now();
+    checkGameOver(room);
+    return true;
   }
-  rooms.delete(code);
+
+  if (state.table.length === 0) {
+    if (pId !== attId) {
+      getIO().to(pId).emit('error_msg', 'Сейчас ход другого игрока'); return false;
+    }
+  } else {
+    if (pIdx !== state.currentThrowerIdx) {
+      getIO().to(pId).emit('error_msg', 'Сейчас не ваша очередь подкидывать'); return false;
+    }
+    const ranks = getTableRanks(state.table);
+    if (!ranks.has(card.rank)) {
+      getIO().to(pId).emit('error_msg', 'Такого достоинства нет на столе'); return false;
+    }
+    const defHandLen = (state.hands[defId] || []).length;
+    const maxPairs = Math.min(6, defHandLen);
+    if (state.table.length >= maxPairs) {
+      getIO().to(pId).emit('error_msg', 'Больше подкидывать нельзя'); return false;
+    }
+  }
+  hand.splice(idx, 1);
+  state.table.push({ attack: card, defense: null, attackerId: pId });
+  state.currentThrowerIdx = pIdx;
+  logMove(state, `${pName}: ${card.rank}${card.suit}`);
+  state.turnStartedAt = Date.now();
+  checkGameOver(room);
+  return true;
 }
 
-function lobbyPayload(room) {
-  return { code: room.code, current: room.players.length, max: room.maxPlayers };
-}
+function handlePass(room, pId) {
+  const state = room.state;
+  const pIdx = state.playersInfo.findIndex(p => p.id === pId);
+  if (pIdx === -1) return false;
 
-io.on('connection', socket => {
-  socket.on('client_ready', ({ sessionId } = {}) => {
-    if (sessionId && playerSessions.has(sessionId)) {
-      const info = playerSessions.get(sessionId);
-      const room = rooms.get(info.roomCode);
-      const p = room && room.players.find(x => x.id === info.playerId);
-      if (room && p) {
-        p.socketId = socket.id;
-        p.eliminated = false;
-        socketRoom.set(socket.id, room.code);
-        socket.join(room.code);
-        room.lastActivity = Date.now();
-        socket.emit('session_restored', { roomCode: room.code });
-        if (room.started) sendState(room);
-        else broadcastRoom(room, 'lobby_update', lobbyPayload(room));
-        return;
+  if (state.pendingTake) {
+    if (pIdx !== state.currentThrowerIdx) {
+      getIO().to(pId).emit('error_msg', 'Сейчас не ваша очередь');
+      return false;
+    }
+    if (!state.pendingTakePassed.includes(pId)) state.pendingTakePassed.push(pId);
+
+    const defId = state.playersInfo[state.defenderIdx].id;
+    const n = state.playersInfo.length;
+    const ranks = getTableRanks(state.table);
+    const defLen = (state.hands[defId] || []).length;
+    const canAdd = state.table.length < Math.min(6, defLen);
+
+    for (let i = 1; i < n; i++) {
+      const idx = (pIdx + i) % n;
+      const p = state.playersInfo[idx];
+      if (p.id === defId) continue;
+      if (state.pendingTakePassed.includes(p.id)) continue;
+      if (canAdd && (state.hands[p.id] || []).some(c => ranks.has(c.rank))) {
+        state.currentThrowerIdx = idx;
+        state.turnStartedAt = Date.now();
+        return true;
       }
     }
-    socket.emit('ready_ok', { ok: true });
+    return finalizeTake(room);
+  }
+
+  if (pIdx !== state.currentThrowerIdx) return false;
+  if (state.table.length === 0) {
+    getIO().to(pId).emit('error_msg', 'На столе пусто'); return false;
+  }
+  if (!state.table.every(p => p.defense !== null)) {
+    getIO().to(pId).emit('error_msg', 'Сначала нужно отбить все карты'); return false;
+  }
+  let next = (state.currentThrowerIdx + 1) % state.playersInfo.length;
+  if (next === state.defenderIdx) next = (next + 1) % state.playersInfo.length;
+  state.currentThrowerIdx = next;
+  state.turnStartedAt = Date.now();
+  return true;
+}
+
+function handleTake(room, pId) {
+  const state = room.state;
+  if (state.pendingTake) return false;
+  const defId = state.playersInfo[state.defenderIdx].id;
+  if (pId !== defId) {
+    getIO().to(pId).emit('error_msg', 'Брать может только защищающийся'); return false;
+  }
+  if (state.table.length === 0) {
+    getIO().to(pId).emit('error_msg', 'На столе нет карт'); return false;
+  }
+
+  const n = state.playersInfo.length;
+  const ranks = getTableRanks(state.table);
+  const defLen = (state.hands[defId] || []).length;
+  const canAddMore = state.table.length < Math.min(6, defLen);
+
+  let hasThrower = false;
+  if (canAddMore) {
+    for (const p of state.playersInfo) {
+      if (p.id === defId) continue;
+      if ((state.hands[p.id] || []).some(c => ranks.has(c.rank))) {
+        hasThrower = true; break;
+      }
+    }
+  }
+
+  if (!hasThrower) return finalizeTake(room);
+
+  state.pendingTake = true;
+  state.pendingTakePassed = [];
+  for (let i = 1; i < n; i++) {
+    const idx = (state.defenderIdx + i) % n;
+    const p = state.playersInfo[idx];
+    if (p.id === defId) continue;
+    if ((state.hands[p.id] || []).some(c => ranks.has(c.rank))) {
+      state.currentThrowerIdx = idx;
+      break;
+    }
+  }
+  const defName = state.playersInfo[state.defenderIdx].name;
+  logMove(state, `${defName}: БЕРУ (ждём подкидывания)`);
+  state.turnStartedAt = Date.now();
+  return true;
+}
+
+function finalizeTake(room) {
+  const state = room.state;
+  const defId = state.playersInfo[state.defenderIdx].id;
+  const takenCount = state.table.reduce((s, p) => s + (p.defense ? 2 : 1), 0);
+  for (const p of state.table) {
+    state.hands[defId].push(p.attack);
+    if (p.defense) state.hands[defId].push(p.defense);
+  }
+  state.table = [];
+  state.pendingTake = false;
+  state.pendingTakePassed = [];
+  sortHand(state.hands[defId], state.trumpSuit);
+  const defName = state.playersInfo[state.defenderIdx].name;
+  logMove(state, `${defName}: ЗАБРАЛ ${takenCount} карт`);
+  const oldDef = state.defenderIdx;
+  state.attackerIdx = (oldDef + 1) % state.playersInfo.length;
+  state.defenderIdx = (state.attackerIdx + 1) % state.playersInfo.length;
+  state.currentThrowerIdx = state.attackerIdx;
+  refillAllHands(state);
+  if (checkGameOver(room)) return true;
+  state.turnStartedAt = Date.now();
+  return true;
+}
+
+function handleDone(room, pId) {
+  const state = room.state;
+  const pIdx = state.playersInfo.findIndex(p => p.id === pId);
+  const defId = state.playersInfo[state.defenderIdx].id;
+  if (pIdx === -1 || pIdx !== state.currentThrowerIdx) {
+    getIO().to(pId).emit('error_msg', 'Сейчас не ваш ход'); return false;
+  }
+  if (pId === defId) {
+    getIO().to(pId).emit('error_msg', 'Защищающийся не может сказать «Бито»'); return false;
+  }
+  if (state.table.length === 0 || !state.table.every(p => p.defense !== null)) {
+    getIO().to(pId).emit('error_msg', 'Не все карты отбиты'); return false;
+  }
+  state.table = [];
+  const pName = state.playersInfo[pIdx].name;
+  logMove(state, `${pName}: БИТО`);
+  const oldDef = state.defenderIdx;
+  state.attackerIdx = oldDef;
+  state.defenderIdx = (state.attackerIdx + 1) % state.playersInfo.length;
+  state.currentThrowerIdx = state.attackerIdx;
+  refillAllHands(state);
+  if (checkGameOver(room)) return true;
+  state.turnStartedAt = Date.now();
+  return true;
+}
+
+function refillAllHands(state) {
+  const n = state.playersInfo.length;
+  for (let i = 0; i < n; i++) {
+    const idx = (state.attackerIdx + i) % n;
+    const pId = state.playersInfo[idx].id;
+    if (!state.hands[pId]) state.hands[pId] = [];
+    while (state.hands[pId].length < 6 && state.deck.length > 0) {
+      state.hands[pId].push(state.deck.pop());
+    }
+    sortHand(state.hands[pId], state.trumpSuit);
+  }
+}
+
+function checkGameOver(room) {
+  const state = room.state;
+  if (state.isGameOver) return true;
+  if (state.deck.length > 0) return false;
+  const withCards = state.playersInfo.filter(p => (state.hands[p.id] || []).length > 0);
+  if (withCards.length === 0) {
+    state.isGameOver = true;
+    state.loser = null;
+    state.winners = state.playersInfo.map(p => p.id);
+    getIO().to(room.id).emit('game_over', { state, winners: state.winners, loser: null });
+    startRematchCountdown(room);
+    return true;
+  }
+  if (withCards.length === 1) {
+    state.isGameOver = true;
+    state.loser = withCards[0].id;
+    state.winners = state.playersInfo.filter(p => p.id !== state.loser).map(p => p.id);
+    getIO().to(room.id).emit('game_over', { state, winners: state.winners, loser: state.loser });
+    startRematchCountdown(room);
+    return true;
+  }
+  return false;
+}
+
+function pickDefenseCard(hand, attCard, trumpSuit, difficulty) {
+  const valid = hand.filter(c => canBeat(attCard, c, trumpSuit));
+  if (valid.length === 0) return null;
+  if (difficulty === 'easy') return valid[0];
+  const attIsTrump = attCard.suit === trumpSuit;
+  let best = null, bestScore = Infinity;
+  for (const c of valid) {
+    const isT = c.suit === trumpSuit;
+    let score = isT ? 100 + c.value : c.value;
+    if (difficulty === 'hard' && isT && !attIsTrump && c.value > 10) score += 50;
+    if (score < bestScore) { bestScore = score; best = c; }
+  }
+  return best;
+}
+
+function pickAttackCard(hand, trumpSuit, deckSize, difficulty) {
+  if (!hand.length) return null;
+  const nonT = hand.filter(c => c.suit !== trumpSuit);
+  const t = hand.filter(c => c.suit === trumpSuit);
+  if (difficulty === 'easy') {
+    const pool = nonT.length ? nonT : t;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  if (difficulty === 'hard') {
+    const late = deckSize < 10;
+    if (nonT.length) {
+      nonT.sort((a, b) => late ? b.value - a.value : a.value - b.value);
+      return nonT[0];
+    }
+    t.sort((a, b) => a.value - b.value);
+    return t[0] || null;
+  }
+  if (nonT.length) {
+    nonT.sort((a, b) => a.value - b.value);
+    return nonT[0];
+  }
+  t.sort((a, b) => a.value - b.value);
+  return t[0] || null;
+}
+
+function pickThrowCard(matches, trumpSuit, difficulty) {
+  if (!matches.length) return null;
+  const sorted = [...matches].sort((a, b) => {
+    const aT = a.suit === trumpSuit ? 1 : 0;
+    const bT = b.suit === trumpSuit ? 1 : 0;
+    if (aT !== bT) return aT - bT;
+    return a.value - b.value;
+  });
+  if (difficulty === 'easy') return matches[0];
+  if (difficulty === 'hard' && Math.random() < 0.2 && sorted.length > 1) {
+    return sorted[sorted.length - 1];
+  }
+  return sorted[0];
+}
+
+function executeBotTurnChain(room) {
+  if (!room || !room.state || room.state.isGameOver) return false;
+  const state = room.state;
+  const defP = state.playersInfo[state.defenderIdx];
+  const n = state.playersInfo.length;
+  const hasCards = id => (state.hands[id] || []).length > 0;
+
+  if (state.pendingTake) {
+    const curP = state.playersInfo[state.currentThrowerIdx];
+    if (!curP.isBot) return false;
+    const ranks = getTableRanks(state.table);
+    const matches = (state.hands[curP.id] || []).filter(c => ranks.has(c.rank));
+    const defLen = (state.hands[defP.id] || []).length;
+    const canAdd = state.table.length < Math.min(6, defLen);
+    if (matches.length && canAdd) {
+      const card = pickThrowCard(matches, state.trumpSuit, curP.botDifficulty);
+      if (card) return handlePlayCard(room, curP.id, card.id);
+    }
+    return handlePass(room, curP.id);
+  }
+
+  const unIdx = state.table.findIndex(p => p.defense === null);
+
+  if (unIdx !== -1) {
+    if (!defP.isBot) return false;
+    const attCard = state.table[unIdx].attack;
+    const hand = state.hands[defP.id] || [];
+    const card = pickDefenseCard(hand, attCard, state.trumpSuit, defP.botDifficulty);
+    if (card) return handlePlayCard(room, defP.id, card.id);
+    return handleTake(room, defP.id);
+  }
+
+  if (state.table.length === 0) {
+    let iter = 0;
+    while (iter < n && !hasCards(state.playersInfo[state.attackerIdx].id)) {
+      state.attackerIdx = (state.attackerIdx + 1) % n;
+      state.defenderIdx = (state.attackerIdx + 1) % n;
+      state.currentThrowerIdx = state.attackerIdx;
+      iter++;
+    }
+    if (checkGameOver(room)) return false;
+    const att = state.playersInfo[state.attackerIdx];
+    if (!att.isBot || !hasCards(att.id)) return false;
+    const card = pickAttackCard(state.hands[att.id], state.trumpSuit, state.deck.length, att.botDifficulty);
+    if (!card) return false;
+    return handlePlayCard(room, att.id, card.id);
+  }
+
+  const tRanks = getTableRanks(state.table);
+  const defLen = (state.hands[defP.id] || []).length;
+  const maxPairs = Math.min(6, defLen);
+  const canAdd = state.table.length < maxPairs;
+
+  let cur = state.currentThrowerIdx;
+  let iter = 0;
+  while (iter < n) {
+    const p = state.playersInfo[cur];
+    if (p.id !== defP.id && hasCards(p.id)) break;
+    cur = (cur + 1) % n;
+    iter++;
+  }
+  if (iter >= n) return false;
+  state.currentThrowerIdx = cur;
+  const curP = state.playersInfo[cur];
+  if (!curP.isBot) return false;
+
+  const hand = state.hands[curP.id] || [];
+  const matches = hand.filter(c => tRanks.has(c.rank));
+  if (matches.length && canAdd) {
+    const card = pickThrowCard(matches, state.trumpSuit, curP.botDifficulty);
+    if (card && handlePlayCard(room, curP.id, card.id)) return true;
+  }
+
+  const others = state.playersInfo.some((p, i) =>
+    i !== cur && p.id !== defP.id && hasCards(p.id) &&
+    (state.hands[p.id] || []).some(c => tRanks.has(c.rank))
+  );
+  if (!others) return handleDone(room, curP.id);
+
+  let next = (cur + 1) % n;
+  if (next === state.defenderIdx) next = (next + 1) % n;
+  state.currentThrowerIdx = next;
+  return true;
+}
+
+function scheduleBotTurn(room) {
+  if (!room || !room.state || room.state.isGameOver) return;
+  if (room.botLoopTimeout) clearTimeout(room.botLoopTimeout);
+  room.botLoopTimeout = setTimeout(() => {
+    if (!room || !room.state || room.state.isGameOver) return;
+    const acted = executeBotTurnChain(room);
+    if (acted) {
+      broadcastState(room);
+      if (!room.state.isGameOver) scheduleBotTurn(room);
+    }
+  }, 700);
+}
+
+function broadcastState(room) {
+  if (!room.state) return;
+  for (const target of room.players) {
+    if (target.isBot) continue;
+    const copy = JSON.parse(JSON.stringify(room.state));
+    const realHands = {};
+    for (const p of room.players) {
+      realHands[p.id] = p.id === target.id
+        ? (room.state.hands[p.id] || [])
+        : new Array((room.state.hands[p.id] || []).length).fill({});
+    }
+    copy.hands = realHands;
+    copy.playersInfo.forEach(info => { info.isYou = info.id === target.id; });
+    getIO().to(target.id).emit('game_update', copy);
+  }
+}
+
+function generateRoomCode() {
+  let code, attempts = 0;
+  do {
+    code = String(Math.floor(1000 + Math.random() * 9000));
+    if (++attempts > 9000) throw new Error('No free room codes');
+  } while (rooms[code]);
+  return code;
+}
+
+function updateLobby(room) {
+  const humans = room.players.filter(p => !p.isBot).length;
+  getIO().to(room.id).emit('lobby_update', {
+    code: room.id,
+    current: room.players.length,
+    max: room.maxPlayers,
+    humanCount: humans
+  });
+}
+
+function fillRoomWithBots(room, difficulty) {
+  const names = ['Бот Валера', 'Бот Степан', 'Бот Гриша'];
+  let i = 0;
+  while (room.players.length < room.maxPlayers) {
+    room.players.push({
+      id: 'BOT_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+      isBot: true,
+      name: names[i++ % names.length],
+      botDifficulty: difficulty
+    });
+  }
+}
+
+function startRematchCountdown(room) {
+  if (room.rematchTimer) clearInterval(room.rematchTimer);
+  room.rematchVotes.clear();
+  let t = 15;
+  getIO().to(room.id).emit('rematch_timer', t);
+  room.rematchTimer = setInterval(() => {
+    t--;
+    getIO().to(room.id).emit('rematch_timer', t);
+    if (t <= 0) {
+      clearInterval(room.rematchTimer);
+      const humans = room.players.filter(p => !p.isBot);
+      if (humans.length > 0 && room.rematchVotes.size >= humans.length) {
+        startRematch(room);
+      } else {
+        getIO().to(room.id).emit('room_expired');
+        delete rooms[room.id];
+      }
+    }
+  }, 1000);
+}
+
+function startRematch(room) {
+  if (room.rematchTimer) clearInterval(room.rematchTimer);
+  initGameState(room);
+  getIO().to(room.id).emit('game_restarted');
+  broadcastState(room);
+  scheduleBotTurn(room);
+}
+
+function attachHandlers(socket) {
+  socket.on('create_room', data => {
+    let maxPlayers = 2, playerName = 'Игрок 1';
+    if (data && typeof data === 'object') {
+      maxPlayers = parseInt(data.maxPlayers) || 2;
+      if (data.playerName) playerName = String(data.playerName).trim().slice(0, 12);
+    }
+    maxPlayers = Math.max(2, Math.min(4, maxPlayers));
+    let code;
+    try { code = generateRoomCode(); }
+    catch { socket.emit('error_msg', 'Сервер перегружен'); return; }
+
+    const room = {
+      id: code, maxPlayers,
+      players: [{ id: socket.id, isBot: false, name: playerName || 'Игрок 1' }],
+      state: null, rematchVotes: new Set(),
+      rematchTimer: null, botLoopTimeout: null
+    };
+    rooms[code] = room;
+    socket.join(code);
+    socket.roomCode = code;
+    socket.emit('room_created', { code, maxPlayers });
+    updateLobby(room);
   });
 
-  socket.on('create_room', ({ maxPlayers, playerName } = {}) => {
-    try {
-      const code = uniqueRoomCode();
-      const room = makeRoom(code, maxPlayers);
-      rooms.set(code, room);
-      joinRoom(socket, room, playerName);
-      socket.emit('room_created', { code, maxPlayers: room.maxPlayers, sessionId: room.players[0].sessionId });
-      broadcastRoom(room, 'lobby_update', lobbyPayload(room));
-    } catch (e) { emitError(socket, e.message); }
+  socket.on('join_room', data => {
+    let code = '', playerName = '';
+    if (data && typeof data === 'object') {
+      code = data.roomCode || '';
+      playerName = data.playerName || '';
+    } else if (typeof data === 'string') {
+      code = data;
+    }
+    code = String(code).trim();
+    if (!/^\d{4}$/.test(code)) {
+      socket.emit('error_msg', 'Код комнаты — 4 цифры');
+      return;
+    }
+    const room = rooms[code];
+    if (!room) { socket.emit('error_msg', 'Комната не найдена'); return; }
+    if (room.state) { socket.emit('error_msg', 'Игра уже началась'); return; }
+    if (room.players.length >= room.maxPlayers) { socket.emit('error_msg', 'Комната заполнена'); return; }
+
+    const name = String(playerName || `Игрок ${room.players.length + 1}`).trim().slice(0, 12);
+    room.players.push({ id: socket.id, isBot: false, name });
+    socket.join(code);
+    socket.roomCode = code;
+    updateLobby(room);
+    if (room.players.length === room.maxPlayers) {
+      initGameState(room);
+      broadcastState(room);
+      scheduleBotTurn(room);
+    }
   });
 
-  socket.on('join_room', ({ roomCode, playerName } = {}) => {
-    try {
-      const code = roomKey(roomCode).replace(/\D/g, '');
-      const room = rooms.get(code);
-      if (!room) throw new Error('Комната не найдена');
-      const joined = joinRoom(socket, room, playerName);
-      socket.emit('session_assigned', { sessionId: joined.sessionId, roomCode: room.code });
-      broadcastRoom(room, 'lobby_update', lobbyPayload(room));
-      if (room.players.length >= room.maxPlayers) startGame(room);
-    } catch (e) { emitError(socket, e.message); }
+  socket.on('play_with_bots', data => {
+    let playerName = 'Вы', botDifficulty = 'normal';
+    if (data && typeof data === 'object') {
+      if (data.playerName) playerName = String(data.playerName).trim().slice(0, 12);
+      if (['easy', 'normal', 'hard'].includes(data.botDifficulty)) botDifficulty = data.botDifficulty;
+    }
+    const code = 'BOTS_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    const room = {
+      id: code, maxPlayers: 2,
+      players: [{ id: socket.id, isBot: false, name: playerName || 'Вы' }],
+      state: null, rematchVotes: new Set(),
+      rematchTimer: null, botLoopTimeout: null,
+      botDifficulty
+    };
+    rooms[code] = room;
+    socket.join(code);
+    socket.roomCode = code;
+    fillRoomWithBots(room, botDifficulty);
+    initGameState(room);
+    broadcastState(room);
+    scheduleBotTurn(room);
   });
 
-  socket.on('play_with_bots', ({ playerName, botDifficulty } = {}) => {
-    try {
-      const code = `BOTS_${socket.id.slice(-6)}`;
-      const room = makeRoom(code, 2);
-      rooms.set(code, room);
-      joinRoom(socket, room, playerName);
-      joinRoom(null, room, 'Бот', true, ['easy','normal','hard'].includes(botDifficulty) ? botDifficulty : 'normal');
-      startGame(room);
-    } catch (e) { emitError(socket, e.message); }
+  socket.on('player_action', ({ roomCode, action, cardId }) => {
+    const room = rooms[roomCode];
+    if (!room || !room.state || room.state.isGameOver) return;
+    if (!room.players.find(p => p.id === socket.id)) return;
+    if (room.botLoopTimeout) { clearTimeout(room.botLoopTimeout); room.botLoopTimeout = null; }
+
+    let ok = false;
+    if (action === 'play_card') ok = handlePlayCard(room, socket.id, cardId);
+    else if (action === 'take') ok = handleTake(room, socket.id);
+    else if (action === 'done') ok = handleDone(room, socket.id);
+    else if (action === 'pass') ok = handlePass(room, socket.id);
+
+    if (ok) {
+      broadcastState(room);
+      scheduleBotTurn(room);
+    }
   });
 
-  socket.on('player_action', ({ roomCode, action, cardId } = {}) => {
-    try {
-      const code = roomKey(roomCode);
-      const room = rooms.get(code);
-      if (!room) throw new Error('Комната не найдена');
-      const p = playerBySocket(room, socket.id);
-      if (!p) throw new Error('Вы не участник этой комнаты');
-      room.lastActivity = Date.now();
-      if (action === 'play_card') playCard(room, p, cardId);
-      else if (action === 'take') {
-        if (p.idx !== room.defenderIdx || !uncoveredPair(room)) throw new Error('Сейчас нельзя взять');
-        defenderTake(room);
-      } else if (action === 'done' || action === 'pass') pass(room, p);
-      else throw new Error('Неизвестное действие');
-    } catch (e) { emitError(socket, e.message); }
+  socket.on('emoji', ({ roomCode, emoji }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+    if (!room.players.find(p => p.id === socket.id)) return;
+    const clean = String(emoji || '').slice(0, 8);
+    getIO().to(room.id).emit('emoji', { playerId: socket.id, emoji: clean });
+  });
+
+  socket.on('send_message', ({ roomCode, message }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+    const clean = String(message || '').trim().slice(0, 150);
+    if (!clean) return;
+    getIO().to(room.id).emit('chat_message', {
+      senderId: socket.id,
+      senderName: player.name,
+      message: clean
+    });
   });
 
   socket.on('vote_rematch', roomCode => {
-    try {
-      const room = rooms.get(roomKey(roomCode));
-      if (!room || !room.isGameOver) throw new Error('Реванш сейчас недоступен');
-      const p = playerBySocket(room, socket.id);
-      if (!p) throw new Error('Вы не участник комнаты');
-      room.rematchVotes.add(p.id);
-      const total = room.players.filter(x => isHuman(x)).length;
-      broadcastRoom(room, 'rematch_voted', { votesCount: room.rematchVotes.size, totalNeeded: total });
-      if (room.rematchVotes.size >= total) {
-        clearTimeout(room.rematchTimer);
-        restartGame(room);
+    const room = rooms[roomCode];
+    if (!room || !room.state || !room.state.isGameOver) return;
+    room.rematchVotes.add(socket.id);
+    const humans = room.players.filter(p => !p.isBot);
+    getIO().to(room.id).emit('rematch_voted', {
+      votesCount: room.rematchVotes.size,
+      totalNeeded: humans.length
+    });
+    if (room.rematchVotes.size >= humans.length) {
+      if (room.rematchTimer) clearInterval(room.rematchTimer);
+      startRematch(room);
+    }
+  });
+
+  socket.on('client_ready', () => {
+    for (const room of Object.values(rooms)) {
+      if (room.players.find(p => p.id === socket.id) && room.state) {
+        broadcastState(room);
+        break;
       }
-    } catch (e) { emitError(socket, e.message); }
+    }
   });
 
   socket.on('leave_room', roomCode => {
-    const room = rooms.get(roomKey(roomCode));
+    const room = rooms[roomCode];
     if (!room) return;
-    const p = playerBySocket(room, socket.id);
-    if (p) {
-      p.socketId = null;
-      p.eliminated = true;
-      if (p.sessionId) playerSessions.delete(p.sessionId);
-      if (!room.started) {
-        deleteRoom(room.code);
-      } else {
-        finishOnDisconnect(room, p);
-      }
-    }
-    socket.leave(room.code);
-    socketRoom.delete(socket.id);
-  });
-
-  socket.on('emoji', ({ roomCode, emoji } = {}) => {
-    const room = rooms.get(roomKey(roomCode));
-    if (!room || !playerBySocket(room, socket.id)) return;
-    const allowed = ['😂','😎','👍','😱','🎯','🔥'];
-    if (!allowed.includes(emoji)) return;
-    socket.to(room.code).emit('emoji', { playerId: playerBySocket(room, socket.id).id, emoji });
-  });
-
-  socket.on('send_message', ({ roomCode, message } = {}) => {
-    const room = rooms.get(roomKey(roomCode));
-    const p = room && playerBySocket(room, socket.id);
-    if (!p) return;
-    const text = String(message || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, MAX_MESSAGE);
-    if (!text) return;
-    socket.to(room.code).emit('chat_message', { senderName: p.name, message: text });
+    const idx = room.players.findIndex(p => p.id === socket.id);
+    if (idx === -1) return;
+    if (room.rematchTimer) clearInterval(room.rematchTimer);
+    if (room.botLoopTimeout) clearTimeout(room.botLoopTimeout);
+    socket.leave(roomCode);
+    socket.roomCode = null;
+    room.players.splice(idx, 1);
+    const humans = room.players.filter(p => !p.isBot).length;
+    if (humans === 0) delete rooms[roomCode];
+    else if (room.state && !room.state.isGameOver) {
+      getIO().to(roomCode).emit('opponent_disconnected');
+      delete rooms[roomCode];
+    } else updateLobby(room);
   });
 
   socket.on('disconnect', () => {
-    const code = socketRoom.get(socket.id);
-    if (!code) return;
-    const room = rooms.get(code);
-    socketRoom.delete(socket.id);
-    if (!room) return;
-    const p = playerBySocket(room, socket.id);
-    if (!p) return;
-    p.socketId = null;
-    // Keep the seat for a short reconnect grace period.
-    clearTimeout(p.disconnectTimer);
-    p.disconnectTimer = setTimeout(() => {
-      if (p.socketId) return;
-      p.eliminated = true;
-      finishOnDisconnect(room, p);
-    }, 20_000);
+    const code = socket.roomCode;
+    if (!code || !rooms[code]) return;
+    const room = rooms[code];
+    const idx = room.players.findIndex(p => p.id === socket.id);
+    if (idx === -1) return;
+    if (room.rematchTimer) clearInterval(room.rematchTimer);
+    if (room.botLoopTimeout) clearTimeout(room.botLoopTimeout);
+    room.players.splice(idx, 1);
+    const humans = room.players.filter(p => !p.isBot).length;
+    if (humans === 0) delete rooms[code];
+    else if (room.state && !room.state.isGameOver) {
+      getIO().to(code).emit('opponent_disconnected');
+      delete rooms[code];
+    } else updateLobby(room);
   });
-});
-
-function finishOnDisconnect(room, p) {
-  room.lastActivity = Date.now();
-  if (!room.started || room.isGameOver) {
-    broadcastRoom(room, 'opponent_disconnected');
-    if (!room.players.some(x => isHuman(x) && x.socketId)) deleteRoom(room.code);
-    return;
-  }
-  const remainingHumans = room.players.filter(x => isHuman(x) && x.socketId);
-  if (remainingHumans.length <= 1) {
-    broadcastRoom(room, 'opponent_disconnected');
-    room.isGameOver = true;
-    room.phase = 'game_over';
-    clearTurnTimer(room);
-    const winner = remainingHumans[0];
-    const winners = winner ? [winner.id] : [];
-    const losers = [p.id];
-    room.result = { winners, losers, reason: 'disconnect' };
-    broadcastRoom(room, 'game_over', room.result);
-    sendState(room);
-  }
 }
 
-function restartGame(room) {
-  room.rematchVotes.clear();
-  room.started = false;
-  room.isGameOver = false;
-  room.result = null;
-  room.finishOrder = [];
-  room.table = [];
-  room.deck = [];
-  room.trumpCard = null;
-  room.trumpSuit = null;
-  room.moveLog = [];
-  room.round = 0;
-  room.phase = 'lobby';
-  room.pendingTake = false;
-  room.passed.clear();
-  for (const p of room.players) { p.hand = []; p.eliminated = false; p.finishedAt = null; }
-  broadcastRoom(room, 'game_restarted');
-  startGame(room);
-}
+function createApp() {
+  const app = express();
+  const httpServer = http.createServer(app);
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [code, room] of rooms) {
-    if (!room.started && now - room.lastActivity > ROOM_TTL_MS) {
-      broadcastRoom(room, 'room_expired');
-      deleteRoom(code);
-    }
-  }
-}, 30_000).unref();
+  const allowedOrigin = process.env.CORS_ORIGIN || '*';
+  const socketServer = new Server(httpServer, {
+    cors: { origin: allowedOrigin, methods: ['GET', 'POST'] },
+    pingTimeout: 60000,
+    pingInterval: 25000
+  });
+
+  app.use(express.static(__dirname));
+
+  app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+  });
+
+  app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+  socketServer.on('connection', attachHandlers);
+  return { app, httpServer, socketServer };
+}
 
 if (require.main === module) {
-  server.listen(PORT, () => console.log(`SANI GROUP Durak server listening on :${PORT}`));
+  const { httpServer, socketServer } = createApp();
+  setIO(socketServer);
+  const PORT = process.env.PORT || 3000;
+
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Сервер] слушает http://0.0.0.0:${PORT}`);
+    console.log(`[Health] http://0.0.0.0:${PORT}/health`);
+  });
 }
 
-module.exports = { makeDeck, canBeat, attackLimit, shuffle, makeRoom, joinRoom, startGame, playCard, pass, defenderTake, completeSuccessfulDefense, drawToSix, chooseBotCard, tableRanks, allDefended };
+module.exports = {
+  RANKS, SUITS,
+  createDeck, shuffleDeck, sortHand, canBeat,
+  getTableRanks, countDefendedPairs,
+  initGameState, refillAllHands, checkGameOver,
+  handlePlayCard, handleTake, handleDone, handlePass,
+  finalizeTake,
+  executeBotTurnChain, scheduleBotTurn,
+  broadcastState, setIO, createApp
+};
