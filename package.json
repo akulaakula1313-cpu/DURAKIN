@@ -3,13 +3,9 @@
   "version": "2.1.0",
   "private": true,
   "main": "server.js",
-  "engines": { "node": ">=18" },
   "scripts": {
     "start": "node server.js",
-    "test": "node test/game.test.js",
-    "test:deep": "node test/deep.test.js",
-    "test:all": "node test/game.test.js && node test/deep.test.js",
-    "simulate": "node test/simulation.js"
+    "test": "node test.js"
   },
   "dependencies": {
     "express": "^5.2.1",
