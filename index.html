@@ -589,35 +589,12 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
    ЭМОДЗИ + ЧАТ
    ============================================================ */
 #emojiBar{
-  position:absolute;right:12px;bottom:12px;
-  z-index:50;
-  display:flex;flex-direction:column;align-items:center;gap:6px;
-  padding:6px;border-radius:16px;
+  position:absolute;bottom:172px;left:50%;transform:translateX(-50%);
+  z-index:50;display:flex;gap:6px;
+  padding:7px 10px;border-radius:999px;
   background:var(--glass);border:1px solid var(--line);
   backdrop-filter:blur(14px);
   box-shadow:0 12px 30px rgba(0,0,0,.4);
-  transition:var(--trans);
-}
-#emojiBar.collapsed{padding:4px}
-#emojiBar.collapsed .emoji-grid{display:none}
-.emoji-toggle{
-  width:40px;height:40px;border-radius:50%;
-  font-size:20px;cursor:pointer;
-  background:color-mix(in srgb,var(--accent) 15%,transparent);
-  border:1px solid var(--line);
-  transition:var(--trans);
-}
-.emoji-toggle:hover{
-  transform:scale(1.1);
-  border-color:var(--accent);
-}
-.emoji-grid{
-  display:grid;grid-template-columns:repeat(2,1fr);gap:4px;
-  animation:emojiPop .2s ease;
-}
-@keyframes emojiPop{
-  from{opacity:0;transform:scale(.85)}
-  to{opacity:1;transform:scale(1)}
 }
 .emoji-btn{
   width:34px;height:34px;border-radius:50%;
@@ -737,6 +714,7 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   .hero h1{font-size:30px;letter-spacing:3px}
   .panel{padding:22px}
   .modal{padding:20px}
+  #emojiBar{bottom:142px}
   #chat{width:220px}
 }
 </style>
@@ -793,17 +771,14 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     <div id="hand" class="hand"></div>
   </div>
 
-  <!-- Эмодзи (сворачиваемая) -->
-  <div id="emojiBar" class="collapsed" style="display:none">
-    <button class="emoji-toggle" onclick="toggleEmojiBar(event)">😊</button>
-    <div class="emoji-grid">
-      <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
-      <button class="emoji-btn" onclick="sendEmoji('😎')">😎</button>
-      <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
-      <button class="emoji-btn" onclick="sendEmoji('😱')">😱</button>
-      <button class="emoji-btn" onclick="sendEmoji('🎯')">🎯</button>
-      <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
-    </div>
+  <!-- Эмодзи -->
+  <div id="emojiBar" style="display:none">
+    <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+    <button class="emoji-btn" onclick="sendEmoji('😎')">😎</button>
+    <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
+    <button class="emoji-btn" onclick="sendEmoji('😱')">😱</button>
+    <button class="emoji-btn" onclick="sendEmoji('🎯')">🎯</button>
+    <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
   </div>
 
   <!-- Чат -->
@@ -1046,7 +1021,7 @@ function applySettings() {
   document.querySelectorAll('.theme-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.theme === S.theme);
   });
-  $('emojiBar').style.display = (S.emoji && state) ? 'flex' : 'none';
+  if (!S.emoji) $('emojiBar').style.display = 'none';
 }
 function setTheme(t) { S.theme = t; saveSettings(); applySettings(); }
 function setSort(v) { S.sort = v; saveSettings(); if (state) render(); }
@@ -1198,8 +1173,10 @@ function render() {
   });
 
   // Колода и козырь
-  $('deckCount').textContent = (state.deck || []).length;
-  $('deck').style.display = (state.deck || []).length ? 'block' : 'none';
+  const deckLeft = (state.deck || []).length;
+  $('deckCount').textContent = deckLeft;
+  $('deck').style.display = deckLeft ? 'block' : 'none';
+  $('trump').style.display = deckLeft && state.trumpCard ? 'block' : 'none';
   $('trump').innerHTML = state.trumpCard ? cardHTML(state.trumpCard) : '';
 
   // Пары на столе
@@ -1243,8 +1220,10 @@ function render() {
     } else if (isThrower && allDefended) {
       playable = tableRanks.has(c.rank);
     }
-    const cls = playable ? 'clickable playable' : 'clickable disabled';
-    return `<div class="wrap"><div class="${cls}" onclick="playCard(${c.id})">${cardHTML(c)}</div></div>`;
+    const cardCls = playable ? 'playable' : 'disabled';
+    const wrapCls = playable ? 'wrap can-play' : 'wrap';
+    const click = playable ? `onclick="playCard(${Number(c.id)})"` : '';
+    return `<div class="${wrapCls}" ${click}>${cardHTML(c, cardCls)}</div>`;
   }).join('');
 
   // Веер
@@ -1298,7 +1277,8 @@ function render() {
   $('take').style.display = (isDefender && !tableEmpty && !pendingTake) ? 'block' : 'none';
   $('done').style.display = (!isDefender && allDefended && isThrower && !pendingTake) ? 'block' : 'none';
 
-  const showPass = !isDefender && isThrower && !tableEmpty && (allDefended || pendingTake);
+  const showPass = !isDefender && isThrower && !tableEmpty &&
+    (pendingTake || (allDefended && ps.length > 2));
   $('pass').style.display = showPass ? 'block' : 'none';
   $('pass').textContent = pendingTake ? 'ЗАВЕРШИТЬ' : 'ПАС';
 
@@ -1357,19 +1337,7 @@ function send(action) {
 function sendEmoji(e) {
   sfx('click');
   socket.emit('emoji', { roomCode, emoji: e });
-  // после отправки сворачиваем панель, чтобы не мешала
-  $('emojiBar').classList.add('collapsed');
 }
-function toggleEmojiBar(e) {
-  if (e) e.stopPropagation();
-  $('emojiBar').classList.toggle('collapsed');
-}
-// Клик вне панели сворачивает её
-document.addEventListener('click', e => {
-  const bar = $('emojiBar');
-  if (!bar || bar.classList.contains('collapsed')) return;
-  if (!bar.contains(e.target)) bar.classList.add('collapsed');
-});
 function quickChat(text) {
   socket.emit('send_message', { roomCode, message: text });
 }
@@ -1475,7 +1443,7 @@ socket.on('game_update', s => {
   $('center').style.display = 'block';
   $('myZone').style.display = 'flex';
   $('statusPill').textContent = 'В ИГРЕ';
-  $('emojiBar').style.display = S.emoji ? 'flex' : 'none';
+  if (S.emoji) $('emojiBar').style.display = 'flex';
   if (roomCode && !roomCode.startsWith('BOTS_')) {
     $('roomPill').style.display = 'block';
     $('roomPill').textContent = 'КОМНАТА ' + roomCode;
