@@ -589,12 +589,35 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
    ЭМОДЗИ + ЧАТ
    ============================================================ */
 #emojiBar{
-  position:absolute;bottom:172px;left:50%;transform:translateX(-50%);
-  z-index:50;display:flex;gap:6px;
-  padding:7px 10px;border-radius:999px;
+  position:absolute;right:12px;bottom:12px;
+  z-index:50;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:6px;border-radius:16px;
   background:var(--glass);border:1px solid var(--line);
   backdrop-filter:blur(14px);
   box-shadow:0 12px 30px rgba(0,0,0,.4);
+  transition:var(--trans);
+}
+#emojiBar.collapsed{padding:4px}
+#emojiBar.collapsed .emoji-grid{display:none}
+.emoji-toggle{
+  width:40px;height:40px;border-radius:50%;
+  font-size:20px;cursor:pointer;
+  background:color-mix(in srgb,var(--accent) 15%,transparent);
+  border:1px solid var(--line);
+  transition:var(--trans);
+}
+.emoji-toggle:hover{
+  transform:scale(1.1);
+  border-color:var(--accent);
+}
+.emoji-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:4px;
+  animation:emojiPop .2s ease;
+}
+@keyframes emojiPop{
+  from{opacity:0;transform:scale(.85)}
+  to{opacity:1;transform:scale(1)}
 }
 .emoji-btn{
   width:34px;height:34px;border-radius:50%;
@@ -714,7 +737,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   .hero h1{font-size:30px;letter-spacing:3px}
   .panel{padding:22px}
   .modal{padding:20px}
-  #emojiBar{bottom:142px}
   #chat{width:220px}
 }
 </style>
@@ -771,14 +793,17 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     <div id="hand" class="hand"></div>
   </div>
 
-  <!-- Эмодзи -->
-  <div id="emojiBar" style="display:none">
-    <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
-    <button class="emoji-btn" onclick="sendEmoji('😎')">😎</button>
-    <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
-    <button class="emoji-btn" onclick="sendEmoji('😱')">😱</button>
-    <button class="emoji-btn" onclick="sendEmoji('🎯')">🎯</button>
-    <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+  <!-- Эмодзи (сворачиваемая) -->
+  <div id="emojiBar" class="collapsed" style="display:none">
+    <button class="emoji-toggle" onclick="toggleEmojiBar(event)">😊</button>
+    <div class="emoji-grid">
+      <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+      <button class="emoji-btn" onclick="sendEmoji('😎')">😎</button>
+      <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
+      <button class="emoji-btn" onclick="sendEmoji('😱')">😱</button>
+      <button class="emoji-btn" onclick="sendEmoji('🎯')">🎯</button>
+      <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+    </div>
   </div>
 
   <!-- Чат -->
@@ -929,6 +954,7 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
         <li>Атака — картами тех достоинств, что уже на столе.</li>
         <li>Отбив — старшая той же масти или козырь. Козырь бьётся только старшим козырем.</li>
         <li>«БЕРУ» — защищающийся забирает все карты со стола.</li>
+        <li>После «БЕРУ» атакующий может ещё подкинуть карты того же достоинства.</li>
         <li>«БИТО» — все отбито, атака завершена.</li>
         <li>Добор — до 6 карт, пока есть колода.</li>
         <li>Проиграл тот, у кого остались карты.</li>
@@ -982,7 +1008,6 @@ let botDifficulty = 'normal';
 let rematchVoted = false;
 let serverTurnStart = 0;
 let timerRAF = null;
-let sessionId = localStorage.getItem('sani-durak-session') || null;
 
 const S = {
   sound: true,
@@ -1021,7 +1046,7 @@ function applySettings() {
   document.querySelectorAll('.theme-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.theme === S.theme);
   });
-  if (!S.emoji) $('emojiBar').style.display = 'none';
+  $('emojiBar').style.display = (S.emoji && state) ? 'flex' : 'none';
 }
 function setTheme(t) { S.theme = t; saveSettings(); applySettings(); }
 function setSort(v) { S.sort = v; saveSettings(); if (state) render(); }
@@ -1097,18 +1122,6 @@ const PIP_POSITIONS = {
   9: [[30, 18], [70, 18], [30, 40], [70, 40], [50, 50], [30, 60], [70, 60], [30, 82], [70, 82]],
   10:[[30, 18], [70, 18], [50, 30], [30, 42], [70, 42], [30, 58], [70, 58], [50, 70], [30, 82], [70, 82]]
 };
-function pipLayout(rank, suit) {
-  const r = String(rank);
-  const map = { '6':6, '7':7, '8':8, '9':9, '10':10, 'J':0, 'Q':0, 'K':0, 'A':1 };
-  const n = map[r];
-  if (n === 0) return null; // лицо — рендерим буквой
-  const pos = PIP_POSITIONS[n] || PIP_POSITIONS[1];
-  const isFace = n === 1;
-  const pips = pos.map(([x, y]) =>
-    `<span class="pip" style="left:${x}%;top:${y}%;width:${isFace?55:26}%;height:${isFace?55:26}%">${suitSVG(suit, 24)}</span>`
-  ).join('');
-  return `<div class="pips">${pips}</div>`;
-}
 
 /* ============================================================
    КАРТА — рендер
@@ -1170,7 +1183,7 @@ function render() {
     const el = $(slots[i]);
     if (!el) return;
     el.style.display = 'flex';
-    const count = state.handCounts?.[o.p.id] ?? (state.hands[o.p.id] || []).length;
+    const count = (state.hands[o.p.id] || []).length;
     const isTurn = state.currentThrowerIdx === o.idx;
     const isDef = state.defenderIdx === o.idx;
     const initials = (o.p.name || '?').slice(0, 1).toUpperCase();
@@ -1204,6 +1217,7 @@ function render() {
   const isThrower = state.currentThrowerIdx === myIdx;
   const tableEmpty = (state.table || []).length === 0;
   const allDefended = (state.table || []).length > 0 && state.table.every(x => x.defense);
+  const pendingTake = !!state.pendingTake;
 
   const sorted = [...hand].sort((a, b) => {
     const aT = a.suit === state.trumpSuit ? 1 : 0;
@@ -1220,16 +1234,14 @@ function render() {
   handEl.innerHTML = sorted.map(c => {
     let playable = false;
     if (pendingTake) {
-      // После БЕРУ защитник уже не может повторно брать.
-      // Подкидывать может только текущий незащитник, по достоинству карты на столе.
-      playable = !isDefender && isThrower && tableRanks.has(c.rank) && (state.table || []).length < 6;
+      playable = !isDefender && isThrower && tableRanks.has(c.rank);
     } else if (isDefender) {
       const uncovered = (state.table || []).find(p => !p.defense);
       playable = uncovered && canBeat(uncovered.attack, c, state.trumpSuit);
     } else if (tableEmpty) {
       playable = isThrower;
     } else if (isThrower && allDefended) {
-      playable = tableRanks.has(c.rank) && (state.table || []).length < 6;
+      playable = tableRanks.has(c.rank);
     }
     const cls = playable ? 'clickable playable' : 'clickable disabled';
     return `<div class="wrap"><div class="${cls}" onclick="playCard(${c.id})">${cardHTML(c)}</div></div>`;
@@ -1251,31 +1263,43 @@ function render() {
     w.style.transform = `rotate(${angle}deg) translateY(${y}px)`;
   });
 
-  // Сообщение + кнопки
+  // Сообщение + заголовок хода
   let msg = 'Ожидание…';
+  let turnText = 'ОЖИДАНИЕ';
+
   if (pendingTake) {
-    msg = isThrower ? 'Защитник забрал карты — подкиньте карту или завершите атаку' : 'Защитник забрал карты — ожидайте';
+    if (isThrower) {
+      msg = 'Защитник забирает. Подкиньте карты или нажмите ЗАВЕРШИТЬ';
+      turnText = 'ПОДКИДЫВАЙТЕ';
+    } else {
+      msg = 'Соперник забирает. Ждём подкидывания…';
+      turnText = 'ЗАБИРАЕТЕ';
+    }
   } else if (isDefender && !tableEmpty) {
     msg = 'Защита: выберите карту или нажмите БЕРУ';
+    turnText = 'ВАША ЗАЩИТА';
   } else if (tableEmpty && isThrower) {
     msg = 'Ваш ход: выберите карту для атаки';
+    turnText = 'ВАШ ХОД';
   } else if (!tableEmpty && isThrower && allDefended) {
-    msg = 'Все карты отбиты — нажмите БИТО или подкиньте карту';
+    msg = 'Подкиньте карту или нажмите БИТО';
+    turnText = 'ВАША АТАКА';
   } else if (!tableEmpty) {
     msg = 'Идёт розыгрыш…';
+    turnText = 'ХОД СОПЕРНИКА';
   } else {
     msg = 'Ход соперника…';
+    turnText = 'ХОД СОПЕРНИКА';
   }
   $('message').textContent = msg;
-  $('turnLabel').textContent = pendingTake
-    ? (isThrower ? 'ПОДКИДЫВАНИЕ' : 'ХОД СОПЕРНИКА')
-    : isDefender ? 'ВАША ЗАЩИТА'
-    : (tableEmpty && isThrower) ? 'ВАШ ХОД'
-    : (isThrower ? 'ВАША АТАКА' : 'ХОД СОПЕРНИКА');
+  $('turnLabel').textContent = turnText;
 
-  $('take').style.display = isDefender && !tableEmpty && !pendingTake ? 'block' : 'none';
-  $('done').style.display = !isDefender && !pendingTake && allDefended && isThrower ? 'block' : 'none';
-  $('pass').style.display = !isDefender && !tableEmpty && isThrower && (allDefended || pendingTake) ? 'block' : 'none';
+  // Кнопки
+  $('take').style.display = (isDefender && !tableEmpty && !pendingTake) ? 'block' : 'none';
+  $('done').style.display = (!isDefender && allDefended && isThrower && !pendingTake) ? 'block' : 'none';
+
+  const showPass = !isDefender && isThrower && !tableEmpty && (allDefended || pendingTake);
+  $('pass').style.display = showPass ? 'block' : 'none';
   $('pass').textContent = pendingTake ? 'ЗАВЕРШИТЬ' : 'ПАС';
 
   // Таймер хода
@@ -1321,27 +1345,31 @@ function startTurnTimer() {
 /* ============================================================
    ДЕЙСТВИЯ
    ============================================================ */
-let actionLock = false;
-function unlockActionSoon(){ clearTimeout(window.__actionLockT); window.__actionLockT = setTimeout(() => actionLock = false, 450); }
 function playCard(cardId) {
   if (suppressClick) { suppressClick = false; return; }
-  if (actionLock) return;
-  actionLock = true;
   sfx('card');
   socket.emit('player_action', { roomCode, action: 'play_card', cardId });
-  unlockActionSoon();
 }
 function send(action) {
-  if (actionLock) return;
-  actionLock = true;
   sfx(action === 'take' ? 'take' : action === 'done' ? 'bit' : 'click');
   socket.emit('player_action', { roomCode, action });
-  unlockActionSoon();
 }
 function sendEmoji(e) {
   sfx('click');
   socket.emit('emoji', { roomCode, emoji: e });
+  // после отправки сворачиваем панель, чтобы не мешала
+  $('emojiBar').classList.add('collapsed');
 }
+function toggleEmojiBar(e) {
+  if (e) e.stopPropagation();
+  $('emojiBar').classList.toggle('collapsed');
+}
+// Клик вне панели сворачивает её
+document.addEventListener('click', e => {
+  const bar = $('emojiBar');
+  if (!bar || bar.classList.contains('collapsed')) return;
+  if (!bar.contains(e.target)) bar.classList.add('collapsed');
+});
 function quickChat(text) {
   socket.emit('send_message', { roomCode, message: text });
 }
@@ -1403,7 +1431,6 @@ function layerClick(e, id) { if (e.target.id === 'modal-' + id) closeModal(id); 
 function confirmExit() { if (state || roomCode) openModal('confirm'); }
 function exitGame() {
   if (roomCode) socket.emit('leave_room', roomCode);
-  localStorage.removeItem('sani-durak-session');
   setTimeout(() => location.reload(), 200);
 }
 
@@ -1421,10 +1448,8 @@ function toast(text) {
 /* ============================================================
    SOCKET HANDLERS
    ============================================================ */
-socket.on('session_assigned', d => { if (d?.sessionId) { sessionId = d.sessionId; localStorage.setItem('sani-durak-session', sessionId); } });
 socket.on('room_created', d => {
   roomCode = d.code;
-  if (d.sessionId) { sessionId = d.sessionId; localStorage.setItem('sani-durak-session', sessionId); }
   $('roomPill').style.display = 'block';
   $('roomPill').textContent = 'КОМНАТА ' + d.code;
   $('roomBox').style.display = 'block';
@@ -1439,21 +1464,18 @@ socket.on('lobby_update', d => {
   $('roomCode').textContent = d.code;
   $('lobbyStatus').textContent = `Игроков: ${d.current} / ${d.max}`;
 });
-socket.on('error_msg', m => { actionLock = false; toast(m); });
-socket.on('opponent_disconnected', () => { toast('Соперник отключился'); });
+socket.on('error_msg', m => toast(m));
+socket.on('opponent_disconnected', () => { toast('Соперник отключился'); setTimeout(() => location.reload(), 1200); });
 
-socket.on('session_restored', d => { roomCode = d.roomCode || roomCode; toast('Соединение восстановлено'); });
 socket.on('game_update', s => {
   if (!s) return;
-  if (s.sessionId) { sessionId = s.sessionId; localStorage.setItem('sani-durak-session', sessionId); }
   state = s;
-  actionLock = false;
   roomCode = s.roomCode || roomCode;
   $('lobby').style.display = 'none';
   $('center').style.display = 'block';
   $('myZone').style.display = 'flex';
   $('statusPill').textContent = 'В ИГРЕ';
-  if (S.emoji) $('emojiBar').style.display = 'flex';
+  $('emojiBar').style.display = S.emoji ? 'flex' : 'none';
   if (roomCode && !roomCode.startsWith('BOTS_')) {
     $('roomPill').style.display = 'block';
     $('roomPill').textContent = 'КОМНАТА ' + roomCode;
@@ -1624,7 +1646,7 @@ $('code').addEventListener('input', e => {
     } catch {}
   }, { once: true, passive: true })
 );
-socket.emit('client_ready', { sessionId });
+socket.emit('client_ready');
 </script>
 </body>
 </html>
