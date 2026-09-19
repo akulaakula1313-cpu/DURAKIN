@@ -727,8 +727,7 @@ if (require.main === module) {
   const { httpServer, socketServer } = createApp();
   setIO(socketServer);
   const PORT = process.env.PORT || 3000;
-  httpServer.listen(PORT, () => console.log(`[Сервер] http://localhost:${PORT}`));
-}
+  httpServer.listen(PORT, '0.0.0.0', () => console.log(`[Сервер] http://localhost:${PORT}`));
 
 module.exports = {
   RANKS, SUITS,
