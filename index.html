@@ -929,7 +929,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
         <li>Атака — картами тех достоинств, что уже на столе.</li>
         <li>Отбив — старшая той же масти или козырь. Козырь бьётся только старшим козырем.</li>
         <li>«БЕРУ» — защищающийся забирает все карты со стола.</li>
-        <li>После «БЕРУ» атакующий может ещё подкинуть карты того же достоинства.</li>
         <li>«БИТО» — все отбито, атака завершена.</li>
         <li>Добор — до 6 карт, пока есть колода.</li>
         <li>Проиграл тот, у кого остались карты.</li>
@@ -983,6 +982,7 @@ let botDifficulty = 'normal';
 let rematchVoted = false;
 let serverTurnStart = 0;
 let timerRAF = null;
+let sessionId = localStorage.getItem('sani-durak-session') || null;
 
 const S = {
   sound: true,
@@ -1097,6 +1097,18 @@ const PIP_POSITIONS = {
   9: [[30, 18], [70, 18], [30, 40], [70, 40], [50, 50], [30, 60], [70, 60], [30, 82], [70, 82]],
   10:[[30, 18], [70, 18], [50, 30], [30, 42], [70, 42], [30, 58], [70, 58], [50, 70], [30, 82], [70, 82]]
 };
+function pipLayout(rank, suit) {
+  const r = String(rank);
+  const map = { '6':6, '7':7, '8':8, '9':9, '10':10, 'J':0, 'Q':0, 'K':0, 'A':1 };
+  const n = map[r];
+  if (n === 0) return null; // лицо — рендерим буквой
+  const pos = PIP_POSITIONS[n] || PIP_POSITIONS[1];
+  const isFace = n === 1;
+  const pips = pos.map(([x, y]) =>
+    `<span class="pip" style="left:${x}%;top:${y}%;width:${isFace?55:26}%;height:${isFace?55:26}%">${suitSVG(suit, 24)}</span>`
+  ).join('');
+  return `<div class="pips">${pips}</div>`;
+}
 
 /* ============================================================
    КАРТА — рендер
@@ -1158,7 +1170,7 @@ function render() {
     const el = $(slots[i]);
     if (!el) return;
     el.style.display = 'flex';
-    const count = (state.hands[o.p.id] || []).length;
+    const count = state.handCounts?.[o.p.id] ?? (state.hands[o.p.id] || []).length;
     const isTurn = state.currentThrowerIdx === o.idx;
     const isDef = state.defenderIdx === o.idx;
     const initials = (o.p.name || '?').slice(0, 1).toUpperCase();
@@ -1192,7 +1204,6 @@ function render() {
   const isThrower = state.currentThrowerIdx === myIdx;
   const tableEmpty = (state.table || []).length === 0;
   const allDefended = (state.table || []).length > 0 && state.table.every(x => x.defense);
-  const pendingTake = !!state.pendingTake;
 
   const sorted = [...hand].sort((a, b) => {
     const aT = a.suit === state.trumpSuit ? 1 : 0;
@@ -1209,14 +1220,16 @@ function render() {
   handEl.innerHTML = sorted.map(c => {
     let playable = false;
     if (pendingTake) {
-      playable = !isDefender && isThrower && tableRanks.has(c.rank);
+      // После БЕРУ защитник уже не может повторно брать.
+      // Подкидывать может только текущий незащитник, по достоинству карты на столе.
+      playable = !isDefender && isThrower && tableRanks.has(c.rank) && (state.table || []).length < 6;
     } else if (isDefender) {
       const uncovered = (state.table || []).find(p => !p.defense);
       playable = uncovered && canBeat(uncovered.attack, c, state.trumpSuit);
     } else if (tableEmpty) {
       playable = isThrower;
     } else if (isThrower && allDefended) {
-      playable = tableRanks.has(c.rank);
+      playable = tableRanks.has(c.rank) && (state.table || []).length < 6;
     }
     const cls = playable ? 'clickable playable' : 'clickable disabled';
     return `<div class="wrap"><div class="${cls}" onclick="playCard(${c.id})">${cardHTML(c)}</div></div>`;
@@ -1238,43 +1251,31 @@ function render() {
     w.style.transform = `rotate(${angle}deg) translateY(${y}px)`;
   });
 
-  // Сообщение + заголовок хода
+  // Сообщение + кнопки
   let msg = 'Ожидание…';
-  let turnText = 'ОЖИДАНИЕ';
-
   if (pendingTake) {
-    if (isThrower) {
-      msg = 'Защитник забирает. Подкиньте карты или нажмите ЗАВЕРШИТЬ';
-      turnText = 'ПОДКИДЫВАЙТЕ';
-    } else {
-      msg = 'Соперник забирает. Ждём подкидывания…';
-      turnText = 'ЗАБИРАЕТЕ';
-    }
+    msg = isThrower ? 'Защитник забрал карты — подкиньте карту или завершите атаку' : 'Защитник забрал карты — ожидайте';
   } else if (isDefender && !tableEmpty) {
     msg = 'Защита: выберите карту или нажмите БЕРУ';
-    turnText = 'ВАША ЗАЩИТА';
   } else if (tableEmpty && isThrower) {
     msg = 'Ваш ход: выберите карту для атаки';
-    turnText = 'ВАШ ХОД';
   } else if (!tableEmpty && isThrower && allDefended) {
-    msg = 'Подкиньте карту или нажмите БИТО';
-    turnText = 'ВАША АТАКА';
+    msg = 'Все карты отбиты — нажмите БИТО или подкиньте карту';
   } else if (!tableEmpty) {
     msg = 'Идёт розыгрыш…';
-    turnText = 'ХОД СОПЕРНИКА';
   } else {
     msg = 'Ход соперника…';
-    turnText = 'ХОД СОПЕРНИКА';
   }
   $('message').textContent = msg;
-  $('turnLabel').textContent = turnText;
+  $('turnLabel').textContent = pendingTake
+    ? (isThrower ? 'ПОДКИДЫВАНИЕ' : 'ХОД СОПЕРНИКА')
+    : isDefender ? 'ВАША ЗАЩИТА'
+    : (tableEmpty && isThrower) ? 'ВАШ ХОД'
+    : (isThrower ? 'ВАША АТАКА' : 'ХОД СОПЕРНИКА');
 
-  // Кнопки
-  $('take').style.display = (isDefender && !tableEmpty && !pendingTake) ? 'block' : 'none';
-  $('done').style.display = (!isDefender && allDefended && isThrower && !pendingTake) ? 'block' : 'none';
-
-  const showPass = !isDefender && isThrower && !tableEmpty && (allDefended || pendingTake);
-  $('pass').style.display = showPass ? 'block' : 'none';
+  $('take').style.display = isDefender && !tableEmpty && !pendingTake ? 'block' : 'none';
+  $('done').style.display = !isDefender && !pendingTake && allDefended && isThrower ? 'block' : 'none';
+  $('pass').style.display = !isDefender && !tableEmpty && isThrower && (allDefended || pendingTake) ? 'block' : 'none';
   $('pass').textContent = pendingTake ? 'ЗАВЕРШИТЬ' : 'ПАС';
 
   // Таймер хода
@@ -1320,14 +1321,22 @@ function startTurnTimer() {
 /* ============================================================
    ДЕЙСТВИЯ
    ============================================================ */
+let actionLock = false;
+function unlockActionSoon(){ clearTimeout(window.__actionLockT); window.__actionLockT = setTimeout(() => actionLock = false, 450); }
 function playCard(cardId) {
   if (suppressClick) { suppressClick = false; return; }
+  if (actionLock) return;
+  actionLock = true;
   sfx('card');
   socket.emit('player_action', { roomCode, action: 'play_card', cardId });
+  unlockActionSoon();
 }
 function send(action) {
+  if (actionLock) return;
+  actionLock = true;
   sfx(action === 'take' ? 'take' : action === 'done' ? 'bit' : 'click');
   socket.emit('player_action', { roomCode, action });
+  unlockActionSoon();
 }
 function sendEmoji(e) {
   sfx('click');
@@ -1394,6 +1403,7 @@ function layerClick(e, id) { if (e.target.id === 'modal-' + id) closeModal(id); 
 function confirmExit() { if (state || roomCode) openModal('confirm'); }
 function exitGame() {
   if (roomCode) socket.emit('leave_room', roomCode);
+  localStorage.removeItem('sani-durak-session');
   setTimeout(() => location.reload(), 200);
 }
 
@@ -1411,8 +1421,10 @@ function toast(text) {
 /* ============================================================
    SOCKET HANDLERS
    ============================================================ */
+socket.on('session_assigned', d => { if (d?.sessionId) { sessionId = d.sessionId; localStorage.setItem('sani-durak-session', sessionId); } });
 socket.on('room_created', d => {
   roomCode = d.code;
+  if (d.sessionId) { sessionId = d.sessionId; localStorage.setItem('sani-durak-session', sessionId); }
   $('roomPill').style.display = 'block';
   $('roomPill').textContent = 'КОМНАТА ' + d.code;
   $('roomBox').style.display = 'block';
@@ -1427,12 +1439,15 @@ socket.on('lobby_update', d => {
   $('roomCode').textContent = d.code;
   $('lobbyStatus').textContent = `Игроков: ${d.current} / ${d.max}`;
 });
-socket.on('error_msg', m => toast(m));
-socket.on('opponent_disconnected', () => { toast('Соперник отключился'); setTimeout(() => location.reload(), 1200); });
+socket.on('error_msg', m => { actionLock = false; toast(m); });
+socket.on('opponent_disconnected', () => { toast('Соперник отключился'); });
 
+socket.on('session_restored', d => { roomCode = d.roomCode || roomCode; toast('Соединение восстановлено'); });
 socket.on('game_update', s => {
   if (!s) return;
+  if (s.sessionId) { sessionId = s.sessionId; localStorage.setItem('sani-durak-session', sessionId); }
   state = s;
+  actionLock = false;
   roomCode = s.roomCode || roomCode;
   $('lobby').style.display = 'none';
   $('center').style.display = 'block';
@@ -1609,7 +1624,7 @@ $('code').addEventListener('input', e => {
     } catch {}
   }, { once: true, passive: true })
 );
-socket.emit('client_ready');
+socket.emit('client_ready', { sessionId });
 </script>
 </body>
 </html>
