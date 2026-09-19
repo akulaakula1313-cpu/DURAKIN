@@ -892,6 +892,12 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
         </div>
       </div>
       <div id="botBox" style="display:none;margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,transparent)">
+        <span class="label">СКОЛЬКО БОТОВ</span>
+        <div class="count-grid">
+          <button class="count active" onclick="setBotCount(1,this)">1 бот</button>
+          <button class="count" onclick="setBotCount(2,this)">2 бота</button>
+          <button class="count" onclick="setBotCount(3,this)">3 бота</button>
+        </div>
         <span class="label">СЛОЖНОСТЬ БОТА</span>
         <div class="count-grid">
           <button class="count" onclick="setBotDifficulty('easy',this)">🟢 Лёгкий</button>
@@ -980,6 +986,7 @@ let myId = null;
 let gameMode = null;
 let playerCount = 2;
 let botDifficulty = 'normal';
+let botCount = 1;
 let rematchVoted = false;
 let serverTurnStart = 0;
 let timerRAF = null;
@@ -994,6 +1001,17 @@ const S = {
 };
 
 const $ = id => document.getElementById(id);
+
+/* Постоянный идентификатор игрока — нужен для переподключения после обрыва связи */
+const PID = (() => {
+  let v = null;
+  try { v = localStorage.getItem('sani-durak-pid'); } catch {}
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(v || '')) {
+    v = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    try { localStorage.setItem('sani-durak-pid', v); } catch {}
+  }
+  return v;
+})();
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 /* ============================================================
@@ -1167,16 +1185,15 @@ function render() {
       <div class="profile">
         <div class="avatar ${o.p.isBot ? 'bot' : ''}">${esc(initials)}${isTurn ? '<div class="turn-ring"></div>' : ''}</div>
         <div class="name">${esc(o.p.name)}</div>
-        <div class="role">${isDef ? 'ЗАЩИЩАЕТСЯ' : isTurn ? 'ХОДИТ' : 'СОПЕРНИК'}</div>
+        <div class="role">${o.p.connected === false ? 'ОТКЛЮЧИЛСЯ' : isDef ? 'ЗАЩИЩАЕТСЯ' : isTurn ? 'ХОДИТ' : 'СОПЕРНИК'}</div>
       </div>
       <div class="opp-hand">${backs}</div>`;
   });
 
   // Колода и козырь
-  const deckLeft = (state.deck || []).length;
+  const deckLeft = typeof state.deckCount === 'number' ? state.deckCount : (state.deck || []).length;
   $('deckCount').textContent = deckLeft;
   $('deck').style.display = deckLeft ? 'block' : 'none';
-  $('trump').style.display = deckLeft && state.trumpCard ? 'block' : 'none';
   $('trump').innerHTML = state.trumpCard ? cardHTML(state.trumpCard) : '';
 
   // Пары на столе
@@ -1190,6 +1207,10 @@ function render() {
   const tableRanks = new Set((state.table || []).flatMap(x =>
     [x.attack?.rank, x.defense?.rank].filter(Boolean)
   ));
+  const defenderId = (ps[state.defenderIdx] || {}).id;
+  const defenderLeft = (state.hands[defenderId] || []).length;
+  const uncovered = (state.table || []).filter(x => !x.defense).length;
+  const canAdd = (state.table || []).length < 6 && uncovered < defenderLeft;
   const isDefender = state.defenderIdx === myIdx;
   const isThrower = state.currentThrowerIdx === myIdx;
   const tableEmpty = (state.table || []).length === 0;
@@ -1217,13 +1238,11 @@ function render() {
       playable = uncovered && canBeat(uncovered.attack, c, state.trumpSuit);
     } else if (tableEmpty) {
       playable = isThrower;
-    } else if (isThrower && allDefended) {
-      playable = tableRanks.has(c.rank);
+    } else if (isThrower) {
+      playable = tableRanks.has(c.rank) && canAdd;
     }
-    const cardCls = playable ? 'playable' : 'disabled';
-    const wrapCls = playable ? 'wrap can-play' : 'wrap';
-    const click = playable ? `onclick="playCard(${Number(c.id)})"` : '';
-    return `<div class="${wrapCls}" ${click}>${cardHTML(c, cardCls)}</div>`;
+    const cls = playable ? 'clickable playable' : 'clickable disabled';
+    return `<div class="wrap"><div class="${cls}" onclick="playCard(${c.id})">${cardHTML(c)}</div></div>`;
   }).join('');
 
   // Веер
@@ -1286,6 +1305,10 @@ function render() {
   if (S.timer && !state.isGameOver) {
     serverTurnStart = state.turnStartedAt || Date.now();
     startTurnTimer();
+  } else {
+    if (timerRAF) cancelAnimationFrame(timerRAF);
+    const oldBar = $('roundHud')?.querySelector('.turn-timer');
+    if (oldBar) oldBar.remove();
   }
 }
 
@@ -1361,10 +1384,19 @@ function setPlayers(n, btn) {
   });
   if (btn) btn.classList.add('active');
 }
+function setBotCount(n, btn) {
+  botCount = Math.max(1, Math.min(3, n));
+  if (btn) {
+    btn.parentElement.querySelectorAll('.count').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+}
 function setBotDifficulty(d, btn) {
   botDifficulty = d;
-  document.querySelectorAll('#botBox .count').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+  if (btn) {
+    btn.parentElement.querySelectorAll('.count').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
 }
 function toggleBotBox() {
   const box = $('botBox');
@@ -1372,19 +1404,19 @@ function toggleBotBox() {
 }
 function playBots() {
   gameMode = 'bot';
-  socket.emit('play_with_bots', { playerName: name(), botDifficulty });
+  socket.emit('play_with_bots', { pid: PID, playerName: name(), botDifficulty, botCount });
   $('lobbyStatus').textContent = 'Запуск матча…';
 }
 function createRoom() {
   gameMode = 'online';
-  socket.emit('create_room', { maxPlayers: playerCount, playerName: name() });
+  socket.emit('create_room', { pid: PID, maxPlayers: playerCount, playerName: name() });
   $('lobbyStatus').textContent = `Создаём стол на ${playerCount} игроков…`;
 }
 function joinRoom() {
   const c = ($('code').value || '').trim();
   if (!/^\d{4}$/.test(c)) { toast('Код — 4 цифры'); return; }
   gameMode = 'online';
-  socket.emit('join_room', { roomCode: c, playerName: name() });
+  socket.emit('join_room', { pid: PID, roomCode: c, playerName: name() });
 }
 function copyCode() {
   if (roomCode) navigator.clipboard?.writeText(roomCode).then(() => toast('Скопировано'));
@@ -1456,10 +1488,12 @@ socket.on('game_update', s => {
 socket.on('game_over', d => {
   const win = Array.isArray(d.winners) ? d.winners.includes(myId) : d.loser !== myId;
   $('resultBig').textContent = win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ';
-  const stats = state ? `
-    <div>Ходов: <b>${(state.moveLog || []).length}</b></div>
-    <div>Карт в колоде осталось: <b>${state.deck?.length || 0}</b></div>
-    <div>Длительность: <b>${Math.floor((Date.now() - (state.turnStartedAt || Date.now())) / 1000)} сек</b></div>` : '';
+  const moves = d.moves ?? (state?.moveLog || []).length;
+  const dur = d.durationSec ?? (state ? Math.floor((Date.now() - (state.startedAt || Date.now())) / 1000) : 0);
+  const stats = `
+    <div>Ходов: <b>${moves}</b></div>
+    <div>Длительность: <b>${Math.floor(dur / 60)} мин ${dur % 60} сек</b></div>
+    <div>${d.loser === null ? 'Ничья — карты закончились у всех' : ''}</div>`;
   $('resultStats').innerHTML = stats;
   $('modal-victory').classList.add('open');
   $('rematch').disabled = false;
@@ -1614,7 +1648,13 @@ $('code').addEventListener('input', e => {
     } catch {}
   }, { once: true, passive: true })
 );
+socket.emit('rejoin', { pid: PID });
 socket.emit('client_ready');
+socket.on('connect', () => socket.emit('rejoin', { pid: PID }));
+socket.on('rejoined', d => { roomCode = d.roomCode; });
+socket.on('rejoin_failed', () => {});
+socket.on('player_disconnected', d => toast(`${d.name} отключился — ждём ${d.graceSec} сек`));
+socket.on('player_reconnected', d => toast(`${d.name} вернулся в игру`));
 </script>
 </body>
 </html>

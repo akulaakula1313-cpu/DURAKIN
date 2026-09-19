@@ -1,11 +1,13 @@
 /**
  * SANI GROUP — ДУРАК PREMIUM
  * Серверная логика (Express + Socket.IO)
+ * v2.1.0 — исправлены правила, ротация ролей, утечка колоды, реконнект.
  */
 
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
 
 const RANKS = [
@@ -15,8 +17,16 @@ const RANKS = [
 ];
 const SUITS = ['♠', '♥', '♦', '♣'];
 
+const HAND_SIZE = 6;
+const MAX_TABLE = 6;               // максимум пар на столе за один кон
+const TURN_LIMIT_MS = 60000;       // авто-ход, если игрок завис
+const RECONNECT_GRACE_MS = 60000;  // сколько ждём переподключения
+const BOT_DELAY_MS = 700;
+const MAX_TAKE_STREAK = 40;        // защита от бесконечной партии
+
 let io = null;
 const rooms = {};
+let watchdog = null;
 
 function setIO(instance) { io = instance; }
 function getIO() {
@@ -24,6 +34,9 @@ function getIO() {
   return io;
 }
 
+/* ============================================================
+   КАРТЫ
+   ============================================================ */
 function createDeck() {
   const deck = [];
   let id = 0;
@@ -37,7 +50,7 @@ function createDeck() {
 
 function shuffleDeck(deck) {
   for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = crypto.randomInt(i + 1);
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
   return deck;
@@ -79,51 +92,73 @@ function countDefendedPairs(table) {
   return table.filter(p => p.defense !== null).length;
 }
 
+function countUncovered(table) {
+  return table.filter(p => p.defense === null).length;
+}
+
+/* ============================================================
+   СВЯЗЬ С ИГРОКАМИ (pid — постоянный id, sid — текущий сокет)
+   ============================================================ */
+function emitTo(room, pid, event, payload) {
+  const p = room.players.find(x => x.pid === pid);
+  if (p && p.sid) getIO().to(p.sid).emit(event, payload);
+}
+function errTo(room, pid, msg) { emitTo(room, pid, 'error_msg', msg); }
+
+/* ============================================================
+   СОСТОЯНИЕ ИГРЫ
+   ============================================================ */
 function initGameState(room) {
   const deck = shuffleDeck(createDeck());
-  const trumpCard = deck[deck.length - 1];
+  // Козырь лежит НА ДНЕ колоды (индекс 0) и уходит последним:
+  // раздача и добор идут с конца массива.
+  const trumpCard = deck[0];
   const trumpSuit = trumpCard.suit;
   const hands = {};
 
   for (const p of room.players) {
-    hands[p.id] = deck.splice(0, 6);
-    sortHand(hands[p.id], trumpSuit);
+    hands[p.pid] = deck.splice(-HAND_SIZE);
+    sortHand(hands[p.pid], trumpSuit);
   }
 
   let firstIdx = 0;
   let minV = Infinity;
   let foundTrump = false;
   room.players.forEach((p, idx) => {
-    const trumps = hands[p.id].filter(c => c.suit === trumpSuit);
-    for (const c of trumps) {
-      if (c.value < minV) { minV = c.value; firstIdx = idx; foundTrump = true; }
+    for (const c of hands[p.pid]) {
+      if (c.suit === trumpSuit && c.value < minV) {
+        minV = c.value; firstIdx = idx; foundTrump = true;
+      }
     }
   });
-  if (!foundTrump) {
-    firstIdx = Math.floor(Math.random() * room.players.length);
-  }
-
-  const n = room.players.length;
-  const defIdx = (firstIdx + 1) % n;
+  if (!foundTrump) firstIdx = crypto.randomInt(room.players.length);
 
   room.state = {
     roomCode: room.id,
     deck, trumpCard, trumpSuit, hands,
     table: [],
     attackerIdx: firstIdx,
-    defenderIdx: defIdx,
+    defenderIdx: (firstIdx + 1) % room.players.length,
     currentThrowerIdx: firstIdx,
+    boutAttackerIdx: firstIdx,
     playersInfo: room.players.map(p => ({
-      id: p.id, name: p.name, isBot: !!p.isBot,
-      botDifficulty: p.botDifficulty || 'normal'
+      id: p.pid, name: p.name, isBot: !!p.isBot,
+      botDifficulty: p.botDifficulty || 'normal',
+      connected: p.isBot ? true : !!p.sid
     })),
+    finished: [],
+    passed: [],
     isGameOver: false,
     winners: [],
     loser: null,
+    startedAt: Date.now(),
     turnStartedAt: Date.now(),
     moveLog: [],
     pendingTake: false,
-    pendingTakePassed: []
+    pendingTakePassed: [],
+    discarded: 0,
+    takeStreak: 0,
+    dirty: false
   };
   room.rematchVotes.clear();
 }
@@ -133,203 +168,230 @@ function logMove(state, text) {
   if (state.moveLog.length > 60) state.moveLog.shift();
 }
 
-function handlePlayCard(room, pId, cardId) {
+function isFinished(state, pid) { return state.finished.includes(pid); }
+
+function nextActiveIdx(state, fromIdx) {
+  const n = state.playersInfo.length;
+  for (let i = 1; i <= n; i++) {
+    const idx = (fromIdx + i) % n;
+    if (!isFinished(state, state.playersInfo[idx].id)) return idx;
+  }
+  return fromIdx;
+}
+
+/** Назначает роли на новый кон, пропуская вышедших из игры. */
+function setRoles(state, attackerIdx) {
+  state.attackerIdx = attackerIdx;
+  state.defenderIdx = nextActiveIdx(state, attackerIdx);
+  state.currentThrowerIdx = attackerIdx;
+  state.boutAttackerIdx = attackerIdx;
+  state.passed = [];
+  state.pendingTake = false;
+  state.pendingTakePassed = [];
+  state.turnStartedAt = Date.now();
+}
+
+/** Сколько ещё карт можно положить на стол: не больше 6 пар и не больше, чем карт у защитника. */
+function canAddCard(state) {
+  if (state.table.length >= MAX_TABLE) return false;
+  const defId = state.playersInfo[state.defenderIdx].id;
+  const defLen = (state.hands[defId] || []).length;
+  return countUncovered(state.table) < defLen;
+}
+
+/** Добор: начиная с того, кто открыл кон; защитник добирает последним. */
+function refillHands(state, startIdx, defIdx) {
+  const n = state.playersInfo.length;
+  const order = [];
+  for (let i = 0; i < n; i++) {
+    const idx = (startIdx + i) % n;
+    if (idx !== defIdx) order.push(idx);
+  }
+  order.push(defIdx);
+  for (const idx of order) {
+    const pid = state.playersInfo[idx].id;
+    if (!state.hands[pid]) state.hands[pid] = [];
+    while (state.hands[pid].length < HAND_SIZE && state.deck.length > 0) {
+      state.hands[pid].push(state.deck.pop());
+    }
+    sortHand(state.hands[pid], state.trumpSuit);
+  }
+}
+
+/** Фиксирует тех, кто вышел из игры (колода пуста и рука пуста). */
+function updateFinished(state) {
+  if (state.deck.length > 0) return;
+  for (const p of state.playersInfo) {
+    if (isFinished(state, p.id)) continue;
+    if ((state.hands[p.id] || []).length === 0) {
+      state.finished.push(p.id);
+      logMove(state, `${p.name}: вышел из игры`);
+    }
+  }
+}
+
+function endGame(room, loser) {
   const state = room.state;
-  const hand = state.hands[pId];
-  if (!hand) { getIO().to(pId).emit('error_msg', 'Нет карт на руке'); return false; }
+  state.isGameOver = true;
+  state.loser = loser;
+  state.winners = state.playersInfo.filter(p => p.id !== loser).map(p => p.id);
+  logMove(state, loser
+    ? `Игра окончена. Дурак — ${state.playersInfo.find(p => p.id === loser).name}`
+    : 'Игра окончена. Ничья');
+
+  broadcastState(room);
+  getIO().to(room.id).emit('game_over', {
+    winners: state.winners,
+    loser: state.loser,
+    moves: state.moveLog.length,
+    durationSec: Math.floor((Date.now() - state.startedAt) / 1000)
+  });
+  startRematchCountdown(room);
+  return true;
+}
+
+/** Конец игры проверяем ТОЛЬКО между конами (стол пуст). */
+function checkGameOver(room) {
+  const state = room.state;
+  if (state.isGameOver) return true;
+  if (state.table.length > 0) return false;
+
+  // защита от вечной партии: слишком много конов подряд закончились взятием
+  if (state.takeStreak >= MAX_TAKE_STREAK) return endGame(room, null);
+
+  if (state.deck.length > 0) return false;
+  const withCards = state.playersInfo.filter(p => (state.hands[p.id] || []).length > 0);
+  if (withCards.length > 1) return false;
+  return endGame(room, withCards.length === 1 ? withCards[0].id : null);
+}
+
+/* ============================================================
+   ХОДЫ
+   ============================================================ */
+function handlePlayCard(room, pid, cardId) {
+  const state = room.state;
+  const hand = state.hands[pid];
+  if (!hand) { errTo(room, pid, 'Нет карт на руке'); return false; }
   const idx = hand.findIndex(c => c.id === cardId);
-  if (idx === -1) { getIO().to(pId).emit('error_msg', 'Карта не найдена'); return false; }
+  if (idx === -1) { errTo(room, pid, 'Карта не найдена'); return false; }
 
   const card = hand[idx];
   const defId = state.playersInfo[state.defenderIdx].id;
   const attId = state.playersInfo[state.attackerIdx].id;
-  const pIdx = state.playersInfo.findIndex(p => p.id === pId);
+  const pIdx = state.playersInfo.findIndex(p => p.id === pid);
+  if (pIdx === -1) return false;
   const pName = state.playersInfo[pIdx].name;
 
-  if (state.pendingTake) {
-    if (pId === defId) {
-      getIO().to(pId).emit('error_msg', 'Вы уже взяли — ждём подкидывания');
-      return false;
-    }
-    if (pIdx !== state.currentThrowerIdx) {
-      getIO().to(pId).emit('error_msg', 'Сейчас не ваша очередь');
-      return false;
-    }
-    const ranks = getTableRanks(state.table);
-    if (!ranks.has(card.rank)) {
-      getIO().to(pId).emit('error_msg', 'Такого достоинства нет на столе');
-      return false;
-    }
-    const defLen = (state.hands[defId] || []).length;
-    if (state.table.length >= Math.min(6, defLen)) {
-      getIO().to(pId).emit('error_msg', 'Больше подкидывать нельзя');
-      return false;
-    }
+  const putOnTable = () => {
     hand.splice(idx, 1);
-    state.table.push({ attack: card, defense: null, attackerId: pId });
+    state.table.push({ attack: card, defense: null, attackerId: pid });
+    state.currentThrowerIdx = pIdx;
+    // новая карта на столе — право подкинуть снова открыто для всех
+    state.passed = [];
+    state.pendingTakePassed = [];
+    state.turnStartedAt = Date.now();
+  };
+
+  // --- защитник уже сказал «БЕРУ»: остальные подкидывают
+  if (state.pendingTake) {
+    if (pid === defId) { errTo(room, pid, 'Вы уже взяли — ждём подкидывания'); return false; }
+    if (pIdx !== state.currentThrowerIdx) { errTo(room, pid, 'Сейчас не ваша очередь'); return false; }
+    if (!getTableRanks(state.table).has(card.rank)) {
+      errTo(room, pid, 'Такого достоинства нет на столе'); return false;
+    }
+    if (!canAddCard(state)) { errTo(room, pid, 'Больше подкидывать нельзя'); return false; }
+    hand.splice(idx, 1);
+    state.table.push({ attack: card, defense: null, attackerId: pid });
+    state.pendingTakePassed = [];
     logMove(state, `${pName}: подкинул ${card.rank}${card.suit}`);
     state.turnStartedAt = Date.now();
     return true;
   }
 
-  if (pId === defId) {
-    if (state.table.length === 0) {
-      getIO().to(pId).emit('error_msg', 'Стол пуст'); return false;
-    }
+  // --- защита
+  if (pid === defId) {
+    if (state.table.length === 0) { errTo(room, pid, 'Стол пуст'); return false; }
     const unIdx = state.table.findIndex(p => p.defense === null);
-    if (unIdx === -1) {
-      getIO().to(pId).emit('error_msg', 'Всё уже отбито'); return false;
-    }
+    if (unIdx === -1) { errTo(room, pid, 'Всё уже отбито'); return false; }
     const attCard = state.table[unIdx].attack;
     if (!canBeat(attCard, card, state.trumpSuit)) {
-      getIO().to(pId).emit('error_msg', 'Карта не бьёт атаку'); return false;
+      errTo(room, pid, 'Карта не бьёт атаку'); return false;
     }
     hand.splice(idx, 1);
     state.table[unIdx].defense = card;
+    state.passed = [];
     logMove(state, `${pName}: отбил ${attCard.rank}${attCard.suit} → ${card.rank}${card.suit}`);
     state.turnStartedAt = Date.now();
-    checkGameOver(room);
+    // конец игры здесь НЕ проверяем: кон ещё не сыгран
     return true;
   }
 
+  if (isFinished(state, pid)) { errTo(room, pid, 'Вы уже вышли из игры'); return false; }
+
+  // --- первая атака
   if (state.table.length === 0) {
-    if (pId !== attId) {
-      getIO().to(pId).emit('error_msg', 'Сейчас ход другого игрока'); return false;
-    }
-  } else {
-    if (pIdx !== state.currentThrowerIdx) {
-      getIO().to(pId).emit('error_msg', 'Сейчас не ваша очередь подкидывать'); return false;
-    }
-    const ranks = getTableRanks(state.table);
-    if (!ranks.has(card.rank)) {
-      getIO().to(pId).emit('error_msg', 'Такого достоинства нет на столе'); return false;
-    }
-    const defHandLen = (state.hands[defId] || []).length;
-    const maxPairs = Math.min(6, defHandLen);
-    if (state.table.length >= maxPairs) {
-      getIO().to(pId).emit('error_msg', 'Больше подкидывать нельзя'); return false;
-    }
+    if (pid !== attId) { errTo(room, pid, 'Сейчас ход другого игрока'); return false; }
+    putOnTable();
+    logMove(state, `${pName}: ${card.rank}${card.suit}`);
+    return true;
   }
-  hand.splice(idx, 1);
-  state.table.push({ attack: card, defense: null, attackerId: pId });
-  state.currentThrowerIdx = pIdx;
-  logMove(state, `${pName}: ${card.rank}${card.suit}`);
-  state.turnStartedAt = Date.now();
-  checkGameOver(room);
+
+  // --- подкидывание
+  if (pIdx !== state.currentThrowerIdx) {
+    errTo(room, pid, 'Сейчас не ваша очередь подкидывать'); return false;
+  }
+  if (!getTableRanks(state.table).has(card.rank)) {
+    errTo(room, pid, 'Такого достоинства нет на столе'); return false;
+  }
+  if (!canAddCard(state)) { errTo(room, pid, 'Больше подкидывать нельзя'); return false; }
+  putOnTable();
+  logMove(state, `${pName}: подкинул ${card.rank}${card.suit}`);
   return true;
 }
 
-function handlePass(room, pId) {
-  const state = room.state;
-  const pIdx = state.playersInfo.findIndex(p => p.id === pId);
-  if (pIdx === -1) return false;
-
-  if (state.pendingTake) {
-    if (pIdx !== state.currentThrowerIdx) {
-      getIO().to(pId).emit('error_msg', 'Сейчас не ваша очередь');
-      return false;
-    }
-    if (!state.pendingTakePassed.includes(pId)) state.pendingTakePassed.push(pId);
-
-    const defId = state.playersInfo[state.defenderIdx].id;
-    const n = state.playersInfo.length;
-    const ranks = getTableRanks(state.table);
-    const defLen = (state.hands[defId] || []).length;
-    const canAdd = state.table.length < Math.min(6, defLen);
-
-    for (let i = 1; i < n; i++) {
-      const idx = (pIdx + i) % n;
-      const p = state.playersInfo[idx];
-      if (p.id === defId) continue;
-      if (state.pendingTakePassed.includes(p.id)) continue;
-      if (canAdd && (state.hands[p.id] || []).some(c => ranks.has(c.rank))) {
-        state.currentThrowerIdx = idx;
-        state.turnStartedAt = Date.now();
-        return true;
-      }
-    }
-    return finalizeTake(room);
-  }
-
-  if (pIdx !== state.currentThrowerIdx) return false;
-  if (state.table.length === 0) {
-    getIO().to(pId).emit('error_msg', 'На столе пусто'); return false;
-  }
-  if (!state.table.every(p => p.defense !== null)) {
-    getIO().to(pId).emit('error_msg', 'Сначала нужно отбить все карты'); return false;
-  }
-  // Когда все карты отбиты, передаём право подкидывать только игроку,
-  // у которого действительно есть подходящая карта. Если таких игроков
-  // больше нет — автоматически завершаем атаку. Это не даёт PASS зациклить
-  // розыгрыш между игроками.
-  const ranks = getTableRanks(state.table);
+/** Кто ещё может подкинуть: не защитник, не вышедший, не спасовавший, есть подходящая карта. */
+function findNextThrower(state, fromIdx, passedList) {
+  if (!canAddCard(state)) return -1;
   const n = state.playersInfo.length;
-  for (let step = 1; step <= n; step++) {
-    const next = (state.currentThrowerIdx + step) % n;
-    if (next === state.defenderIdx) continue;
-    const nextId = state.playersInfo[next].id;
-    if (
-      (state.hands[nextId] || []).length > 0 &&
-      (state.hands[nextId] || []).some(c => ranks.has(c.rank))
-    ) {
-      state.currentThrowerIdx = next;
-      state.turnStartedAt = Date.now();
-      return true;
-    }
+  const defId = state.playersInfo[state.defenderIdx].id;
+  const ranks = getTableRanks(state.table);
+  for (let i = 1; i <= n; i++) {
+    const idx = (fromIdx + i) % n;
+    const p = state.playersInfo[idx];
+    if (p.id === defId) continue;
+    if (isFinished(state, p.id)) continue;
+    if (passedList.includes(p.id)) continue;
+    if ((state.hands[p.id] || []).some(c => ranks.has(c.rank))) return idx;
   }
-
-  // Никто больше не может подкинуть — атака завершена.
-  return handleDone(room, pId);
+  return -1;
 }
 
-function handleTake(room, pId) {
+function handleTake(room, pid) {
   const state = room.state;
   if (state.pendingTake) return false;
   const defId = state.playersInfo[state.defenderIdx].id;
-  if (pId !== defId) {
-    getIO().to(pId).emit('error_msg', 'Брать может только защищающийся'); return false;
-  }
-  if (state.table.length === 0) {
-    getIO().to(pId).emit('error_msg', 'На столе нет карт'); return false;
-  }
-
-  const n = state.playersInfo.length;
-  const ranks = getTableRanks(state.table);
-  const defLen = (state.hands[defId] || []).length;
-  const canAddMore = state.table.length < Math.min(6, defLen);
-
-  let hasThrower = false;
-  if (canAddMore) {
-    for (const p of state.playersInfo) {
-      if (p.id === defId) continue;
-      if ((state.hands[p.id] || []).some(c => ranks.has(c.rank))) {
-        hasThrower = true; break;
-      }
-    }
-  }
-
-  if (!hasThrower) return finalizeTake(room);
+  if (pid !== defId) { errTo(room, pid, 'Брать может только защищающийся'); return false; }
+  if (state.table.length === 0) { errTo(room, pid, 'На столе нет карт'); return false; }
 
   state.pendingTake = true;
   state.pendingTakePassed = [];
-  for (let i = 1; i < n; i++) {
-    const idx = (state.defenderIdx + i) % n;
-    const p = state.playersInfo[idx];
-    if (p.id === defId) continue;
-    if ((state.hands[p.id] || []).some(c => ranks.has(c.rank))) {
-      state.currentThrowerIdx = idx;
-      break;
-    }
+  const nextIdx = findNextThrower(state, state.defenderIdx, []);
+  if (nextIdx === -1) {
+    state.pendingTake = false;
+    return finalizeTake(room);
   }
-  const defName = state.playersInfo[state.defenderIdx].name;
-  logMove(state, `${defName}: БЕРУ (ждём подкидывания)`);
+  state.currentThrowerIdx = nextIdx;
+  logMove(state, `${state.playersInfo[state.defenderIdx].name}: БЕРУ (ждём подкидывания)`);
   state.turnStartedAt = Date.now();
   return true;
 }
 
 function finalizeTake(room) {
   const state = room.state;
-  const defId = state.playersInfo[state.defenderIdx].id;
+  const defIdx = state.defenderIdx;
+  const defId = state.playersInfo[defIdx].id;
+  if (!state.hands[defId]) state.hands[defId] = [];
+
   const takenCount = state.table.reduce((s, p) => s + (p.defense ? 2 : 1), 0);
   for (const p of state.table) {
     state.hands[defId].push(p.attack);
@@ -338,87 +400,86 @@ function finalizeTake(room) {
   state.table = [];
   state.pendingTake = false;
   state.pendingTakePassed = [];
+  state.passed = [];
   sortHand(state.hands[defId], state.trumpSuit);
-  const defName = state.playersInfo[state.defenderIdx].name;
-  logMove(state, `${defName}: ЗАБРАЛ ${takenCount} карт`);
-  const oldDef = state.defenderIdx;
+  logMove(state, `${state.playersInfo[defIdx].name}: ЗАБРАЛ ${takenCount} карт`);
+  state.takeStreak++;
 
-  // Важное правило «Подкидного дурака»: тот, кто забрал карты,
-  // становится следующим атакующим. Раньше здесь атакующим снова
-  // становился предыдущий атакующий, из-за чего защищающийся мог
-  // снова защищаться и накапливать 13–14+ карт.
-  state.attackerIdx = oldDef;
-  state.defenderIdx = (oldDef + 1) % state.playersInfo.length;
-  state.currentThrowerIdx = state.attackerIdx;
-  refillAllHands(state);
+  refillHands(state, state.boutAttackerIdx, defIdx);
+  updateFinished(state);
   if (checkGameOver(room)) return true;
-  state.turnStartedAt = Date.now();
+  // взявший пропускает ход: атакует следующий за ним
+  setRoles(state, nextActiveIdx(state, defIdx));
   return true;
 }
 
-function handleDone(room, pId) {
+/** Завершение кона «БИТО». */
+function finishBout(room, byPid) {
   const state = room.state;
-  const pIdx = state.playersInfo.findIndex(p => p.id === pId);
-  const defId = state.playersInfo[state.defenderIdx].id;
-  if (pIdx === -1 || pIdx !== state.currentThrowerIdx) {
-    getIO().to(pId).emit('error_msg', 'Сейчас не ваш ход'); return false;
-  }
-  if (pId === defId) {
-    getIO().to(pId).emit('error_msg', 'Защищающийся не может сказать «Бито»'); return false;
-  }
-  if (state.table.length === 0 || !state.table.every(p => p.defense !== null)) {
-    getIO().to(pId).emit('error_msg', 'Не все карты отбиты'); return false;
-  }
+  const defIdx = state.defenderIdx;
+  state.discarded += state.table.reduce((s, p) => s + (p.defense ? 2 : 1), 0);
   state.table = [];
-  const pName = state.playersInfo[pIdx].name;
-  logMove(state, `${pName}: БИТО`);
-  const oldDef = state.defenderIdx;
-  state.attackerIdx = oldDef;
-  state.defenderIdx = (state.attackerIdx + 1) % state.playersInfo.length;
-  state.currentThrowerIdx = state.attackerIdx;
-  refillAllHands(state);
+  const name = (state.playersInfo.find(p => p.id === byPid) || {}).name || '—';
+  logMove(state, `${name}: БИТО`);
+  state.takeStreak = 0;
+
+  refillHands(state, state.boutAttackerIdx, defIdx);
+  updateFinished(state);
   if (checkGameOver(room)) return true;
+  // отбившийся становится атакующим (если ещё в игре)
+  const nextAtt = isFinished(state, state.playersInfo[defIdx].id)
+    ? nextActiveIdx(state, defIdx)
+    : defIdx;
+  setRoles(state, nextAtt);
+  return true;
+}
+
+function handleDone(room, pid) {
+  const state = room.state;
+  const pIdx = state.playersInfo.findIndex(p => p.id === pid);
+  const defId = state.playersInfo[state.defenderIdx].id;
+  if (state.pendingTake) { errTo(room, pid, 'Защитник забирает карты'); return false; }
+  if (pIdx === -1 || pIdx !== state.currentThrowerIdx) {
+    errTo(room, pid, 'Сейчас не ваш ход'); return false;
+  }
+  if (pid === defId) { errTo(room, pid, 'Защищающийся не может сказать «Бито»'); return false; }
+  if (state.table.length === 0 || countUncovered(state.table) > 0) {
+    errTo(room, pid, 'Не все карты отбиты'); return false;
+  }
+  return finishBout(room, pid);
+}
+
+function handlePass(room, pid) {
+  const state = room.state;
+  const pIdx = state.playersInfo.findIndex(p => p.id === pid);
+  if (pIdx === -1) return false;
+  if (pIdx !== state.currentThrowerIdx) { errTo(room, pid, 'Сейчас не ваша очередь'); return false; }
+
+  // пас во время «БЕРУ»
+  if (state.pendingTake) {
+    if (!state.pendingTakePassed.includes(pid)) state.pendingTakePassed.push(pid);
+    const nextIdx = findNextThrower(state, pIdx, state.pendingTakePassed);
+    if (nextIdx === -1) return finalizeTake(room);
+    state.currentThrowerIdx = nextIdx;
+    state.turnStartedAt = Date.now();
+    return true;
+  }
+
+  if (state.table.length === 0) { errTo(room, pid, 'На столе пусто'); return false; }
+  if (countUncovered(state.table) > 0) {
+    errTo(room, pid, 'Сначала нужно отбить все карты'); return false;
+  }
+  if (!state.passed.includes(pid)) state.passed.push(pid);
+  const nextIdx = findNextThrower(state, pIdx, state.passed);
+  if (nextIdx === -1) return finishBout(room, pid);   // все спасовали → БИТО
+  state.currentThrowerIdx = nextIdx;
   state.turnStartedAt = Date.now();
   return true;
 }
 
-function refillAllHands(state) {
-  const n = state.playersInfo.length;
-  for (let i = 0; i < n; i++) {
-    const idx = (state.attackerIdx + i) % n;
-    const pId = state.playersInfo[idx].id;
-    if (!state.hands[pId]) state.hands[pId] = [];
-    while (state.hands[pId].length < 6 && state.deck.length > 0) {
-      state.hands[pId].push(state.deck.pop());
-    }
-    sortHand(state.hands[pId], state.trumpSuit);
-  }
-}
-
-function checkGameOver(room) {
-  const state = room.state;
-  if (state.isGameOver) return true;
-  if (state.deck.length > 0) return false;
-  const withCards = state.playersInfo.filter(p => (state.hands[p.id] || []).length > 0);
-  if (withCards.length === 0) {
-    state.isGameOver = true;
-    state.loser = null;
-    state.winners = state.playersInfo.map(p => p.id);
-    getIO().to(room.id).emit('game_over', { state, winners: state.winners, loser: null });
-    startRematchCountdown(room);
-    return true;
-  }
-  if (withCards.length === 1) {
-    state.isGameOver = true;
-    state.loser = withCards[0].id;
-    state.winners = state.playersInfo.filter(p => p.id !== state.loser).map(p => p.id);
-    getIO().to(room.id).emit('game_over', { state, winners: state.winners, loser: state.loser });
-    startRematchCountdown(room);
-    return true;
-  }
-  return false;
-}
-
+/* ============================================================
+   БОТЫ
+   ============================================================ */
 function pickDefenseCard(hand, attCard, trumpSuit, difficulty) {
   const valid = hand.filter(c => canBeat(attCard, c, trumpSuit));
   if (valid.length === 0) return null;
@@ -430,18 +491,6 @@ function pickDefenseCard(hand, attCard, trumpSuit, difficulty) {
     let score = isT ? 100 + c.value : c.value;
     if (difficulty === 'hard' && isT && !attIsTrump && c.value > 10) score += 50;
     if (score < bestScore) { bestScore = score; best = c; }
-  }
-
-  // Среди близких по цене карт иногда выбираем альтернативу, чтобы бот
-  // не воспроизводил бесконечную одну и ту же последовательность.
-  const near = valid.filter(c => {
-    const isT = c.suit === trumpSuit;
-    let score = isT ? 100 + c.value : c.value;
-    if (difficulty === 'hard' && isT && !attIsTrump && c.value > 10) score += 50;
-    return score <= bestScore + 2;
-  });
-  if (difficulty === 'hard' && near.length > 1) {
-    return near[Math.floor(Math.random() * near.length)];
   }
   return best;
 }
@@ -455,17 +504,13 @@ function pickAttackCard(hand, trumpSuit, deckSize, difficulty) {
     return pool[Math.floor(Math.random() * pool.length)];
   }
   if (difficulty === 'hard') {
-    const late = deckSize < 10;
+    // всегда ходим младшей некозырной; козырь бережём на защиту
     if (nonT.length) {
-      nonT.sort((a, b) => late ? b.value - a.value : a.value - b.value);
-      // Не зацикливаем бота на одной и той же минимальной карте.
-      // Берём одну из нескольких лучших карт с небольшим случайным выбором.
-      const pool = nonT.slice(0, Math.min(3, nonT.length));
-      return pool[Math.floor(Math.random() * pool.length)];
+      nonT.sort((a, b) => a.value - b.value);
+      return nonT[0];
     }
     t.sort((a, b) => a.value - b.value);
-    const pool = t.slice(0, Math.min(3, t.length));
-    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    return t[0] || null;
   }
   if (nonT.length) {
     nonT.sort((a, b) => a.value - b.value);
@@ -484,169 +529,164 @@ function pickThrowCard(matches, trumpSuit, difficulty) {
     return a.value - b.value;
   });
   if (difficulty === 'easy') return matches[0];
-  if (difficulty === 'hard' && Math.random() < 0.2 && sorted.length > 1) {
-    return sorted[sorted.length - 1];
-  }
-  return sorted[0];
+  return sorted[0];   // подкидываем самую младшую, козыри — в последнюю очередь
 }
 
+/** Один шаг бота. true — состояние изменилось и его надо разослать. */
 function executeBotTurnChain(room) {
   if (!room || !room.state || room.state.isGameOver) return false;
   const state = room.state;
+  state.dirty = false;
   const defP = state.playersInfo[state.defenderIdx];
-  const n = state.playersInfo.length;
-  const hasCards = id => (state.hands[id] || []).length > 0;
 
-  // Защита от редкого стратегического зацикливания ботов при пустой колоде.
-  // Это не меняет правила: принудительное действие всегда остаётся легальным.
-  const botSignature = JSON.stringify({
-    a: state.attackerIdx, d: state.defenderIdx, t: state.currentThrowerIdx,
-    p: state.pendingTake,
-    table: state.table.map(x => [x.attack.id, x.defense ? x.defense.id : null]),
-    hands: state.playersInfo.map(p => [p.id, (state.hands[p.id] || []).map(c => c.id)]) ,
-    deck: state.deck.map(c => c.id)
-  });
-  if (!room.botStateSeen) room.botStateSeen = new Map();
-  const seen = (room.botStateSeen.get(botSignature) || 0) + 1;
-  room.botStateSeen.set(botSignature, seen);
-  if (room.botStateSeen.size > 250) {
-    const first = room.botStateSeen.keys().next().value;
-    room.botStateSeen.delete(first);
-  }
-  if (seen >= 4) {
-    room.botStateSeen.clear();
-    if (state.pendingTake) {
-      const cur = state.playersInfo[state.currentThrowerIdx];
-      if (cur && cur.isBot) return handlePass(room, cur.id);
-    }
-    const unIdx = state.table.findIndex(p => p.defense === null);
-    if (unIdx !== -1 && defP.isBot) return handleTake(room, defP.id);
-    if (unIdx === -1 && state.table.length > 0) {
-      const cur = state.playersInfo[state.currentThrowerIdx];
-      if (cur && cur.isBot) return handleDone(room, cur.id);
-    }
-    if (state.table.length === 0) {
-      const att = state.playersInfo[state.attackerIdx];
-      if (att && att.isBot && hasCards(att.id)) {
-        const hand = state.hands[att.id];
-        const card = hand[Math.floor(Math.random() * hand.length)];
-        if (card) return handlePlayCard(room, att.id, card.id);
-      }
-    }
-  }
-
+  // 1) защитник забрал — подкидываем
   if (state.pendingTake) {
     const curP = state.playersInfo[state.currentThrowerIdx];
     if (!curP.isBot) return false;
     const ranks = getTableRanks(state.table);
     const matches = (state.hands[curP.id] || []).filter(c => ranks.has(c.rank));
-    const defLen = (state.hands[defP.id] || []).length;
-    const canAdd = state.table.length < Math.min(6, defLen);
-    if (matches.length && canAdd) {
+    if (matches.length && canAddCard(state)) {
       const card = pickThrowCard(matches, state.trumpSuit, curP.botDifficulty);
-      if (card) return handlePlayCard(room, curP.id, card.id);
+      if (card && handlePlayCard(room, curP.id, card.id)) return true;
     }
     return handlePass(room, curP.id);
   }
 
+  // 2) есть неотбитая карта — ходит защитник
   const unIdx = state.table.findIndex(p => p.defense === null);
-
   if (unIdx !== -1) {
     if (!defP.isBot) return false;
-    const attCard = state.table[unIdx].attack;
-    const hand = state.hands[defP.id] || [];
-    const card = pickDefenseCard(hand, attCard, state.trumpSuit, defP.botDifficulty);
+    const card = pickDefenseCard(state.hands[defP.id] || [], state.table[unIdx].attack,
+      state.trumpSuit, defP.botDifficulty);
     if (card) return handlePlayCard(room, defP.id, card.id);
     return handleTake(room, defP.id);
   }
 
+  // 3) стол пуст — новая атака
   if (state.table.length === 0) {
-    let iter = 0;
-    while (iter < n && !hasCards(state.playersInfo[state.attackerIdx].id)) {
-      state.attackerIdx = (state.attackerIdx + 1) % n;
-      state.defenderIdx = (state.attackerIdx + 1) % n;
-      state.currentThrowerIdx = state.attackerIdx;
-      iter++;
+    if (isFinished(state, state.playersInfo[state.attackerIdx].id)) {
+      setRoles(state, nextActiveIdx(state, state.attackerIdx));
+      state.dirty = true;
     }
     if (checkGameOver(room)) return false;
     const att = state.playersInfo[state.attackerIdx];
-    if (!att.isBot || !hasCards(att.id)) return false;
-    const card = pickAttackCard(state.hands[att.id], state.trumpSuit, state.deck.length, att.botDifficulty);
-    if (!card) return false;
+    if (!att.isBot) return state.dirty;
+    const card = pickAttackCard(state.hands[att.id] || [], state.trumpSuit,
+      state.deck.length, att.botDifficulty);
+    if (!card) return state.dirty;
     return handlePlayCard(room, att.id, card.id);
   }
 
-  const tRanks = getTableRanks(state.table);
-  const defLen = (state.hands[defP.id] || []).length;
-  const maxPairs = Math.min(6, defLen);
-  const canAdd = state.table.length < maxPairs;
-
-  let cur = state.currentThrowerIdx;
-  let iter = 0;
-  while (iter < n) {
-    const p = state.playersInfo[cur];
-    if (p.id !== defP.id && hasCards(p.id)) break;
-    cur = (cur + 1) % n;
-    iter++;
-  }
-  if (iter >= n) return false;
-  state.currentThrowerIdx = cur;
-  const curP = state.playersInfo[cur];
+  // 4) всё отбито — подкидываем или «БИТО»
+  const curP = state.playersInfo[state.currentThrowerIdx];
   if (!curP.isBot) return false;
-
-  const hand = state.hands[curP.id] || [];
-  const matches = hand.filter(c => tRanks.has(c.rank));
-  if (matches.length && canAdd) {
+  const ranks = getTableRanks(state.table);
+  const matches = (state.hands[curP.id] || []).filter(c => ranks.has(c.rank));
+  if (matches.length && canAddCard(state)) {
     const card = pickThrowCard(matches, state.trumpSuit, curP.botDifficulty);
     if (card && handlePlayCard(room, curP.id, card.id)) return true;
   }
-
-  const others = state.playersInfo.some((p, i) =>
-    i !== cur && p.id !== defP.id && hasCards(p.id) &&
-    (state.hands[p.id] || []).some(c => tRanks.has(c.rank))
-  );
-  if (!others) return handleDone(room, curP.id);
-
-  let next = (cur + 1) % n;
-  if (next === state.defenderIdx) next = (next + 1) % n;
-  state.currentThrowerIdx = next;
-  return true;
+  return handlePass(room, curP.id);
 }
 
 function scheduleBotTurn(room) {
   if (!room || !room.state || room.state.isGameOver) return;
   if (room.botLoopTimeout) clearTimeout(room.botLoopTimeout);
   room.botLoopTimeout = setTimeout(() => {
-    if (!room || !room.state || room.state.isGameOver) return;
+    room.botLoopTimeout = null;
+    if (!rooms[room.id] || !room.state || room.state.isGameOver) return;
     const acted = executeBotTurnChain(room);
     if (acted) {
       broadcastState(room);
       if (!room.state.isGameOver) scheduleBotTurn(room);
     }
-  }, 700);
+  }, BOT_DELAY_MS);
 }
 
-function broadcastState(room) {
-  if (!room.state) return;
-  for (const target of room.players) {
-    if (target.isBot) continue;
-    const copy = JSON.parse(JSON.stringify(room.state));
-    const realHands = {};
-    for (const p of room.players) {
-      realHands[p.id] = p.id === target.id
-        ? (room.state.hands[p.id] || [])
-        : new Array((room.state.hands[p.id] || []).length).fill({});
+/* ============================================================
+   АВТО-ХОД ПРИ ЗАВИСАНИИ (ограничение времени хода)
+   ============================================================ */
+function currentActorIdx(state) {
+  if (state.pendingTake) return state.currentThrowerIdx;
+  if (countUncovered(state.table) > 0) return state.defenderIdx;
+  return state.currentThrowerIdx;
+}
+
+function forceMove(room) {
+  const state = room.state;
+  const idx = currentActorIdx(state);
+  const actor = state.playersInfo[idx];
+  if (!actor || actor.isBot) return false;
+
+  if (state.pendingTake) return handlePass(room, actor.id);
+  if (countUncovered(state.table) > 0) return handleTake(room, actor.id);
+  if (state.table.length === 0) {
+    const card = pickAttackCard(state.hands[actor.id] || [], state.trumpSuit, state.deck.length, 'normal');
+    return card ? handlePlayCard(room, actor.id, card.id) : false;
+  }
+  return handlePass(room, actor.id);
+}
+
+function tickRooms() {
+  for (const room of Object.values(rooms)) {
+    if (!room.state || room.state.isGameOver) continue;
+    if (Date.now() - room.state.turnStartedAt < TURN_LIMIT_MS) continue;
+    if (forceMove(room)) {
+      broadcastState(room);
+      scheduleBotTurn(room);
+    } else {
+      room.state.turnStartedAt = Date.now();
     }
-    copy.hands = realHands;
-    copy.playersInfo.forEach(info => { info.isYou = info.id === target.id; });
-    getIO().to(target.id).emit('game_update', copy);
   }
 }
 
+/* ============================================================
+   РАССЫЛКА СОСТОЯНИЯ (колода НЕ раскрывается)
+   ============================================================ */
+function broadcastState(room) {
+  if (!room.state) return;
+  const st = room.state;
+  for (const target of room.players) {
+    if (target.isBot || !target.sid) continue;
+    const copy = {
+      roomCode: st.roomCode,
+      trumpCard: st.trumpCard,
+      trumpSuit: st.trumpSuit,
+      table: st.table,
+      attackerIdx: st.attackerIdx,
+      defenderIdx: st.defenderIdx,
+      currentThrowerIdx: st.currentThrowerIdx,
+      finished: st.finished,
+      isGameOver: st.isGameOver,
+      winners: st.winners,
+      loser: st.loser,
+      startedAt: st.startedAt,
+      turnStartedAt: st.turnStartedAt,
+      moveLog: st.moveLog,
+      pendingTake: st.pendingTake,
+      discarded: st.discarded,
+      deckCount: st.deck.length,
+      // клиент использует только длину — карты не раскрываем
+      deck: new Array(st.deck.length).fill(null),
+      hands: {},
+      playersInfo: st.playersInfo.map(info => ({ ...info, isYou: info.id === target.pid }))
+    };
+    for (const p of room.players) {
+      copy.hands[p.pid] = p.pid === target.pid
+        ? (st.hands[p.pid] || [])
+        : new Array((st.hands[p.pid] || []).length).fill({});
+    }
+    getIO().to(target.sid).emit('game_update', copy);
+  }
+}
+
+/* ============================================================
+   КОМНАТЫ
+   ============================================================ */
 function generateRoomCode() {
   let code, attempts = 0;
   do {
-    code = String(Math.floor(1000 + Math.random() * 9000));
+    code = String(1000 + crypto.randomInt(9000));
     if (++attempts > 9000) throw new Error('No free room codes');
   } while (rooms[code]);
   return code;
@@ -666,13 +706,22 @@ function fillRoomWithBots(room, difficulty) {
   const names = ['Бот Валера', 'Бот Степан', 'Бот Гриша'];
   let i = 0;
   while (room.players.length < room.maxPlayers) {
+    const id = 'BOT_' + crypto.randomBytes(5).toString('hex');
     room.players.push({
-      id: 'BOT_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
-      isBot: true,
+      pid: id, sid: null, isBot: true,
       name: names[i++ % names.length],
       botDifficulty: difficulty
     });
   }
+}
+
+function destroyRoom(code) {
+  const room = rooms[code];
+  if (!room) return;
+  if (room.rematchTimer) clearInterval(room.rematchTimer);
+  if (room.botLoopTimeout) clearTimeout(room.botLoopTimeout);
+  if (room.graceTimer) clearTimeout(room.graceTimer);
+  delete rooms[code];
 }
 
 function startRematchCountdown(room) {
@@ -685,72 +734,107 @@ function startRematchCountdown(room) {
     getIO().to(room.id).emit('rematch_timer', t);
     if (t <= 0) {
       clearInterval(room.rematchTimer);
-      const humans = room.players.filter(p => !p.isBot);
+      room.rematchTimer = null;
+      const humans = room.players.filter(p => !p.isBot && p.sid);
       if (humans.length > 0 && room.rematchVotes.size >= humans.length) {
         startRematch(room);
       } else {
         getIO().to(room.id).emit('room_expired');
-        delete rooms[room.id];
+        destroyRoom(room.id);
       }
     }
   }, 1000);
 }
 
 function startRematch(room) {
-  if (room.rematchTimer) clearInterval(room.rematchTimer);
+  if (room.rematchTimer) { clearInterval(room.rematchTimer); room.rematchTimer = null; }
   initGameState(room);
   getIO().to(room.id).emit('game_restarted');
   broadcastState(room);
   scheduleBotTurn(room);
 }
 
+/* ============================================================
+   SOCKET.IO
+   ============================================================ */
+function cleanPid(raw, fallback) {
+  const s = String(raw || '').trim();
+  return /^[A-Za-z0-9_-]{8,64}$/.test(s) ? s : fallback;
+}
+function cleanName(raw, fallback) {
+  const s = String(raw || '').trim().slice(0, 12);
+  return s || fallback;
+}
+function findRoomBySid(sid) {
+  return Object.values(rooms).find(r => r.players.some(p => p.sid === sid)) || null;
+}
+
 function attachHandlers(socket) {
-  socket.on('create_room', data => {
-    let maxPlayers = 2, playerName = 'Игрок 1';
-    if (data && typeof data === 'object') {
-      maxPlayers = parseInt(data.maxPlayers) || 2;
-      if (data.playerName) playerName = String(data.playerName).trim().slice(0, 12);
+  socket.on('rejoin', data => {
+    const pid = cleanPid(data && data.pid, null);
+    if (!pid) return;
+    const room = Object.values(rooms).find(r => r.players.some(p => p.pid === pid));
+    if (!room) { socket.emit('rejoin_failed'); return; }
+    const player = room.players.find(p => p.pid === pid);
+    player.sid = socket.id;
+    socket.join(room.id);
+    socket.data.pid = pid;
+    if (room.state) {
+      const info = room.state.playersInfo.find(i => i.id === pid);
+      if (info) info.connected = true;
+      const allBack = room.players.filter(p => !p.isBot).every(p => p.sid);
+      if (allBack && room.graceTimer) { clearTimeout(room.graceTimer); room.graceTimer = null; }
+      getIO().to(room.id).emit('player_reconnected', { name: player.name });
+      socket.emit('rejoined', { roomCode: room.id });
+      broadcastState(room);
+      scheduleBotTurn(room);
+    } else {
+      socket.emit('rejoined', { roomCode: room.id });
+      updateLobby(room);
     }
-    maxPlayers = Math.max(2, Math.min(4, maxPlayers));
+  });
+
+  socket.on('create_room', data => {
+    const d = (data && typeof data === 'object') ? data : {};
+    let maxPlayers = Math.max(2, Math.min(4, parseInt(d.maxPlayers) || 2));
+    const pid = cleanPid(d.pid, socket.id);
+    // старая комната этого игрока больше не нужна
+    const prev = Object.values(rooms).find(r => !r.state && r.players.some(p => p.pid === pid));
+    if (prev) destroyRoom(prev.id);
+
     let code;
     try { code = generateRoomCode(); }
     catch { socket.emit('error_msg', 'Сервер перегружен'); return; }
 
-    const room = {
+    rooms[code] = {
       id: code, maxPlayers,
-      players: [{ id: socket.id, isBot: false, name: playerName || 'Игрок 1' }],
+      players: [{ pid, sid: socket.id, isBot: false, name: cleanName(d.playerName, 'Игрок 1') }],
       state: null, rematchVotes: new Set(),
-      rematchTimer: null, botLoopTimeout: null
+      rematchTimer: null, botLoopTimeout: null, graceTimer: null
     };
-    rooms[code] = room;
     socket.join(code);
-    socket.roomCode = code;
+    socket.data.pid = pid;
     socket.emit('room_created', { code, maxPlayers });
-    updateLobby(room);
+    updateLobby(rooms[code]);
   });
 
   socket.on('join_room', data => {
-    let code = '', playerName = '';
-    if (data && typeof data === 'object') {
-      code = data.roomCode || '';
-      playerName = data.playerName || '';
-    } else if (typeof data === 'string') {
-      code = data;
-    }
-    code = String(code).trim();
-    if (!/^\d{4}$/.test(code)) {
-      socket.emit('error_msg', 'Код комнаты — 4 цифры');
-      return;
-    }
+    const d = (data && typeof data === 'object') ? data : { roomCode: data };
+    const code = String(d.roomCode || '').trim();
+    const pid = cleanPid(d.pid, socket.id);
+    if (!/^\d{4}$/.test(code)) { socket.emit('error_msg', 'Код комнаты — 4 цифры'); return; }
     const room = rooms[code];
     if (!room) { socket.emit('error_msg', 'Комната не найдена'); return; }
+    if (room.players.some(p => p.pid === pid)) { socket.emit('error_msg', 'Вы уже в этой комнате'); return; }
     if (room.state) { socket.emit('error_msg', 'Игра уже началась'); return; }
     if (room.players.length >= room.maxPlayers) { socket.emit('error_msg', 'Комната заполнена'); return; }
 
-    const name = String(playerName || `Игрок ${room.players.length + 1}`).trim().slice(0, 12);
-    room.players.push({ id: socket.id, isBot: false, name });
+    room.players.push({
+      pid, sid: socket.id, isBot: false,
+      name: cleanName(d.playerName, `Игрок ${room.players.length + 1}`)
+    });
     socket.join(code);
-    socket.roomCode = code;
+    socket.data.pid = pid;
     updateLobby(room);
     if (room.players.length === room.maxPlayers) {
       initGameState(room);
@@ -760,128 +844,154 @@ function attachHandlers(socket) {
   });
 
   socket.on('play_with_bots', data => {
-    let playerName = 'Вы', botDifficulty = 'normal';
-    if (data && typeof data === 'object') {
-      if (data.playerName) playerName = String(data.playerName).trim().slice(0, 12);
-      if (['easy', 'normal', 'hard'].includes(data.botDifficulty)) botDifficulty = data.botDifficulty;
-    }
-    const code = 'BOTS_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    const d = (data && typeof data === 'object') ? data : {};
+    const pid = cleanPid(d.pid, socket.id);
+    const botCount = Math.max(1, Math.min(3, parseInt(d.botCount) || 1));
+    const botDifficulty = ['easy', 'normal', 'hard'].includes(d.botDifficulty) ? d.botDifficulty : 'normal';
+    const prev = Object.values(rooms).find(r => r.players.some(p => p.pid === pid));
+    if (prev) destroyRoom(prev.id);
+
+    const code = 'BOTS_' + crypto.randomBytes(6).toString('hex').toUpperCase();
     const room = {
-      id: code, maxPlayers: 2,
-      players: [{ id: socket.id, isBot: false, name: playerName || 'Вы' }],
+      id: code, maxPlayers: botCount + 1,
+      players: [{ pid, sid: socket.id, isBot: false, name: cleanName(d.playerName, 'Вы') }],
       state: null, rematchVotes: new Set(),
-      rematchTimer: null, botLoopTimeout: null,
+      rematchTimer: null, botLoopTimeout: null, graceTimer: null,
       botDifficulty
     };
     rooms[code] = room;
     socket.join(code);
-    socket.roomCode = code;
+    socket.data.pid = pid;
     fillRoomWithBots(room, botDifficulty);
     initGameState(room);
     broadcastState(room);
     scheduleBotTurn(room);
   });
 
-  socket.on('player_action', ({ roomCode, action, cardId }) => {
-    const room = rooms[roomCode];
+  socket.on('player_action', payload => {
+    const d = payload || {};
+    const room = rooms[d.roomCode] || findRoomBySid(socket.id);
     if (!room || !room.state || room.state.isGameOver) return;
-    if (!room.players.find(p => p.id === socket.id)) return;
-    if (room.botLoopTimeout) { clearTimeout(room.botLoopTimeout); room.botLoopTimeout = null; }
+    const player = room.players.find(p => p.sid === socket.id);
+    if (!player) return;
 
     let ok = false;
-    if (action === 'play_card') ok = handlePlayCard(room, socket.id, cardId);
-    else if (action === 'take') ok = handleTake(room, socket.id);
-    else if (action === 'done') ok = handleDone(room, socket.id);
-    else if (action === 'pass') ok = handlePass(room, socket.id);
+    if (d.action === 'play_card') ok = handlePlayCard(room, player.pid, d.cardId);
+    else if (d.action === 'take') ok = handleTake(room, player.pid);
+    else if (d.action === 'done') ok = handleDone(room, player.pid);
+    else if (d.action === 'pass') ok = handlePass(room, player.pid);
 
     if (ok) {
+      // таймер бота сбрасываем ТОЛЬКО после удачного хода
+      if (room.botLoopTimeout) { clearTimeout(room.botLoopTimeout); room.botLoopTimeout = null; }
       broadcastState(room);
       scheduleBotTurn(room);
     }
   });
 
-  socket.on('emoji', ({ roomCode, emoji }) => {
-    const room = rooms[roomCode];
+  socket.on('emoji', payload => {
+    const d = payload || {};
+    const room = rooms[d.roomCode] || findRoomBySid(socket.id);
     if (!room) return;
-    if (!room.players.find(p => p.id === socket.id)) return;
-    const clean = String(emoji || '').slice(0, 8);
-    getIO().to(room.id).emit('emoji', { playerId: socket.id, emoji: clean });
+    const player = room.players.find(p => p.sid === socket.id);
+    if (!player) return;
+    if (!rateOk(player, 'emoji', 1500)) return;
+    getIO().to(room.id).emit('emoji', { playerId: player.pid, emoji: String(d.emoji || '').slice(0, 8) });
   });
 
-  socket.on('send_message', ({ roomCode, message }) => {
-    const room = rooms[roomCode];
+  socket.on('send_message', payload => {
+    const d = payload || {};
+    const room = rooms[d.roomCode] || findRoomBySid(socket.id);
     if (!room) return;
-    const player = room.players.find(p => p.id === socket.id);
+    const player = room.players.find(p => p.sid === socket.id);
     if (!player) return;
-    const clean = String(message || '').trim().slice(0, 150);
+    if (!rateOk(player, 'chat', 800)) return;
+    const clean = String(d.message || '').trim().slice(0, 150);
     if (!clean) return;
     getIO().to(room.id).emit('chat_message', {
-      senderId: socket.id,
-      senderName: player.name,
-      message: clean
+      senderId: player.pid, senderName: player.name, message: clean
     });
   });
 
   socket.on('vote_rematch', roomCode => {
-    const room = rooms[roomCode];
+    const room = rooms[roomCode] || findRoomBySid(socket.id);
     if (!room || !room.state || !room.state.isGameOver) return;
-    room.rematchVotes.add(socket.id);
-    const humans = room.players.filter(p => !p.isBot);
+    const player = room.players.find(p => p.sid === socket.id);
+    if (!player) return;
+    room.rematchVotes.add(player.pid);
+    const humans = room.players.filter(p => !p.isBot && p.sid);
     getIO().to(room.id).emit('rematch_voted', {
-      votesCount: room.rematchVotes.size,
-      totalNeeded: humans.length
+      votesCount: room.rematchVotes.size, totalNeeded: humans.length
     });
-    if (room.rematchVotes.size >= humans.length) {
-      if (room.rematchTimer) clearInterval(room.rematchTimer);
-      startRematch(room);
-    }
+    if (humans.length > 0 && room.rematchVotes.size >= humans.length) startRematch(room);
   });
 
   socket.on('client_ready', () => {
-    for (const room of Object.values(rooms)) {
-      if (room.players.find(p => p.id === socket.id) && room.state) {
-        broadcastState(room);
-        break;
-      }
-    }
+    const room = findRoomBySid(socket.id);
+    if (room && room.state) broadcastState(room);
   });
 
-  socket.on('leave_room', roomCode => {
-    const room = rooms[roomCode];
+  socket.on('leave_room', () => {
+    const room = findRoomBySid(socket.id);
     if (!room) return;
-    const idx = room.players.findIndex(p => p.id === socket.id);
+    const idx = room.players.findIndex(p => p.sid === socket.id);
     if (idx === -1) return;
-    if (room.rematchTimer) clearInterval(room.rematchTimer);
-    if (room.botLoopTimeout) clearTimeout(room.botLoopTimeout);
-    socket.leave(roomCode);
-    socket.roomCode = null;
+    socket.leave(room.id);
     room.players.splice(idx, 1);
-    const humans = room.players.filter(p => !p.isBot).length;
-    if (humans === 0) delete rooms[roomCode];
-    else if (room.state && !room.state.isGameOver) {
-      getIO().to(roomCode).emit('opponent_disconnected');
-      delete rooms[roomCode];
+    if (room.players.filter(p => !p.isBot).length === 0) { destroyRoom(room.id); return; }
+    if (room.state && !room.state.isGameOver) {
+      getIO().to(room.id).emit('opponent_disconnected');
+      destroyRoom(room.id);
     } else updateLobby(room);
   });
 
   socket.on('disconnect', () => {
-    const code = socket.roomCode;
-    if (!code || !rooms[code]) return;
-    const room = rooms[code];
-    const idx = room.players.findIndex(p => p.id === socket.id);
-    if (idx === -1) return;
-    if (room.rematchTimer) clearInterval(room.rematchTimer);
-    if (room.botLoopTimeout) clearTimeout(room.botLoopTimeout);
-    room.players.splice(idx, 1);
-    const humans = room.players.filter(p => !p.isBot).length;
-    if (humans === 0) delete rooms[code];
-    else if (room.state && !room.state.isGameOver) {
-      getIO().to(code).emit('opponent_disconnected');
-      delete rooms[code];
-    } else updateLobby(room);
+    const room = findRoomBySid(socket.id);
+    if (!room) return;
+    const player = room.players.find(p => p.sid === socket.id);
+    if (!player) return;
+    player.sid = null;
+
+    // в лобби игрок просто выходит
+    if (!room.state) {
+      room.players = room.players.filter(p => p.pid !== player.pid);
+      if (room.players.filter(p => !p.isBot).length === 0) destroyRoom(room.id);
+      else updateLobby(room);
+      return;
+    }
+
+    const info = room.state.playersInfo.find(i => i.id === player.pid);
+    if (info) info.connected = false;
+    getIO().to(room.id).emit('player_disconnected', {
+      name: player.name, graceSec: Math.floor(RECONNECT_GRACE_MS / 1000)
+    });
+    broadcastState(room);
+
+    if (room.players.filter(p => !p.isBot && p.sid).length === 0 && room.state.isGameOver) {
+      destroyRoom(room.id);
+      return;
+    }
+    if (room.graceTimer) clearTimeout(room.graceTimer);
+    room.graceTimer = setTimeout(() => {
+      if (!rooms[room.id]) return;
+      getIO().to(room.id).emit('opponent_disconnected');
+      destroyRoom(room.id);
+    }, RECONNECT_GRACE_MS);
   });
 }
 
+/** Простой анти-спам на игрока. */
+function rateOk(player, key, ms) {
+  const now = Date.now();
+  player._rate = player._rate || {};
+  if (player._rate[key] && now - player._rate[key] < ms) return false;
+  player._rate[key] = now;
+  return true;
+}
+
+/* ============================================================
+   HTTP
+   ============================================================ */
 function createApp() {
   const app = express();
   const httpServer = http.createServer(app);
@@ -893,15 +1003,16 @@ function createApp() {
     pingInterval: 25000
   });
 
-  app.use(express.static(__dirname));
-
-  app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', uptime: process.uptime() });
-  });
-
-  app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+  // раздаём ТОЛЬКО public/, исходники сервера наружу не уходят
+  const PUBLIC_DIR = path.join(__dirname, 'public');
+  app.use(express.static(PUBLIC_DIR));
+  app.get('/health', (req, res) => res.status(200).json({
+    status: 'ok', uptime: process.uptime(), rooms: Object.keys(rooms).length
+  }));
+  app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 
   socketServer.on('connection', attachHandlers);
+  if (!watchdog) watchdog = setInterval(tickRooms, 5000);
   return { app, httpServer, socketServer };
 }
 
@@ -909,7 +1020,6 @@ if (require.main === module) {
   const { httpServer, socketServer } = createApp();
   setIO(socketServer);
   const PORT = process.env.PORT || 3000;
-
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`[Сервер] слушает http://0.0.0.0:${PORT}`);
     console.log(`[Health] http://0.0.0.0:${PORT}/health`);
@@ -917,12 +1027,13 @@ if (require.main === module) {
 }
 
 module.exports = {
-  RANKS, SUITS,
+  RANKS, SUITS, MAX_TABLE, HAND_SIZE,
   createDeck, shuffleDeck, sortHand, canBeat,
-  getTableRanks, countDefendedPairs,
-  initGameState, refillAllHands, checkGameOver,
+  getTableRanks, countDefendedPairs, countUncovered, canAddCard,
+  initGameState, refillHands, endGame, updateFinished, checkGameOver, setRoles, nextActiveIdx,
   handlePlayCard, handleTake, handleDone, handlePass,
-  finalizeTake,
-  executeBotTurnChain, scheduleBotTurn,
-  broadcastState, setIO, createApp
+  finalizeTake, finishBout, findNextThrower,
+  pickAttackCard, pickDefenseCard, pickThrowCard,
+  executeBotTurnChain, scheduleBotTurn, tickRooms,
+  broadcastState, setIO, createApp, rooms
 };
