@@ -10,7 +10,7 @@
     "simulate": "node test/simulation.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "socket.io": "^4.8.1"
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
   }
 }

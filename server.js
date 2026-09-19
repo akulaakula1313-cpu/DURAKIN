@@ -709,16 +709,27 @@ function attachHandlers(socket) {
 function createApp() {
   const app = express();
   const httpServer = http.createServer(app);
-  const allowedOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+
+  // FIX: CORS теперь разрешает все origin'ы по умолчанию,
+  // потому что index.html и socket.io отдаются с одного домена.
+  // Переменная CORS_ORIGIN нужна только если клиент с другого домена.
+  const allowedOrigin = process.env.CORS_ORIGIN || '*';
   const socketServer = new Server(httpServer, {
     cors: { origin: allowedOrigin, methods: ['GET', 'POST'] },
     pingTimeout: 60000,
     pingInterval: 25000
   });
+
+  app.use(express.static(__dirname));
+
+  // FIX: Health-check endpoint — Render будет дёргать его,
+  // чтобы убедиться, что сервис жив. Отдаём 200 моментально.
   app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: Date.now() });
-});
+    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+  });
+
   app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
   socketServer.on('connection', attachHandlers);
   return { app, httpServer, socketServer };
 }
@@ -727,7 +738,13 @@ if (require.main === module) {
   const { httpServer, socketServer } = createApp();
   setIO(socketServer);
   const PORT = process.env.PORT || 3000;
-  httpServer.listen(PORT, '0.0.0.0', () => console.log(`[Сервер] http://localhost:${PORT}`));
+
+  // FIX: явная привязка к 0.0.0.0 — обязательно для Render/Heroku.
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Сервер] слушает http://0.0.0.0:${PORT}`);
+    console.log(`[Health] http://0.0.0.0:${PORT}/health`);
+  });
+}
 
 module.exports = {
   RANKS, SUITS,

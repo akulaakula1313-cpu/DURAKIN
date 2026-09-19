@@ -2,9 +2,15 @@ services:
   - type: web
     name: durak-premium
     runtime: node
+    plan: free
     buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
-      - key: CORS_ORIGIN
-        value: https://your-service.onrender.com
+      - key: NODE_VERSION
+        value: 20.18.0
+      # CORS_ORIGIN не задаём — сервер сам разрешит все origin'ы,
+      # так как страница и socket.io отдаются с одного домена.
+      # Если понадобится ограничить — раскомментируйте и укажите свой URL:
+      # - key: CORS_ORIGIN
+      #   value: https://durak-premium.onrender.com
