@@ -1,398 +1,1606 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="royal-gold">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Дурак — SANI GROUP Premium</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a5b35'/><text x='50' y='75' font-size='70' text-anchor='middle' fill='%23f4d27a'>♠</text></svg>">
 <script src="/socket.io/socket.io.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Cinzel:wght@600;800&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+/* ============================================================
+   ТЕМЫ — управляются через data-theme на <html>
+   ============================================================ */
 :root{
- --bg:#07120d;--felt:#0c4b2d;--felt2:#083820;--gold:#e8c56a;--gold2:#b98b2f;
- --text:#f7f3e8;--muted:#9eae9f;--red:#d94b4b;--green:#42d889;--blue:#5ca9ff;
- --cardw:78px;--cardh:112px;--shadow:0 14px 35px rgba(0,0,0,.42);
+  --cw:78px; --ch:112px;
+  --radius:11px;
+  --trans:.22s cubic-bezier(.2,.7,.3,1.1);
 }
+
+[data-theme="royal-gold"]{
+  --bg:#030806; --table-a:#0a5b35; --table-b:#041d12; --table-c:#073d25;
+  --accent:#f4d27a; --accent-hi:#fff0ae; --accent-deep:#8e6520;
+  --text:#f7f3e8; --muted:#9eae9f;
+  --card-face:#fffefb; --card-shade:#e8e3d8; --red:#c92f37; --black:#141414;
+  --glass:rgba(6,14,9,.62); --line:rgba(244,210,122,.22);
+  --shadow:0 18px 34px rgba(0,0,0,.5);
+}
+[data-theme="forest"]{
+  --bg:#0f0b06; --table-a:#2d5a32; --table-b:#1a2c1c; --table-c:#243f26;
+  --accent:#d4a95c; --accent-hi:#f0d68a; --accent-deep:#6b4914;
+  --text:#f5ede0; --muted:#a89a82;
+  --card-face:#f7f0e0; --card-shade:#ddd2b8; --red:#a8342b; --black:#1e1a12;
+  --glass:rgba(20,14,8,.66); --line:rgba(212,169,92,.26);
+  --shadow:0 18px 34px rgba(0,0,0,.55);
+  --font-head:'Cinzel',serif;
+}
+[data-theme="artdeco"]{
+  --bg:#050505; --table-a:#0a0a0a; --table-b:#000; --table-c:#111;
+  --accent:#e0b552; --accent-hi:#ffe08a; --accent-deep:#7d5a10;
+  --text:#f4efe0; --muted:#9a9084;
+  --card-face:#fdfbf3; --card-shade:#e0dac6; --red:#c1272d; --black:#0a0a0a;
+  --glass:rgba(8,8,8,.78); --line:rgba(224,181,82,.32);
+  --shadow:0 18px 34px rgba(0,0,0,.6);
+  --font-head:'Cinzel',serif;
+}
+[data-theme="neon"]{
+  --bg:#08040f; --table-a:#1a0b3d; --table-b:#080418; --table-c:#14082e;
+  --accent:#c34bff; --accent-hi:#f0a8ff; --accent-deep:#5a1178;
+  --text:#f2eaff; --muted:#8f7fb5;
+  --card-face:#fbf6ff; --card-shade:#e0d4ef; --red:#ff2d9a; --black:#1a0e2e;
+  --glass:rgba(15,8,30,.72); --line:rgba(195,75,255,.35);
+  --shadow:0 18px 34px rgba(120,40,220,.35);
+}
+[data-theme="ocean"]{
+  --bg:#020814; --table-a:#073a52; --table-b:#03182b; --table-c:#05273a;
+  --accent:#5fe0d8; --accent-hi:#b8f5f0; --accent-deep:#1e6a65;
+  --text:#e8f3f7; --muted:#7c97a5;
+  --card-face:#f4fbfd; --card-shade:#d5e5eb; --red:#e05a6a; --black:#0f1a22;
+  --glass:rgba(4,20,35,.72); --line:rgba(95,224,216,.28);
+  --shadow:0 18px 34px rgba(20,60,90,.5);
+}
+[data-theme="esports"]{
+  --bg:#08090d; --table-a:#0e1220; --table-b:#030408; --table-c:#0a0d18;
+  --accent:#a3ff2b; --accent-hi:#d8ff7a; --accent-deep:#4e7a08;
+  --text:#eaf5ff; --muted:#7c8595;
+  --card-face:#f6faff; --card-shade:#d5e0ea; --red:#ff2d75; --black:#0a0d18;
+  --glass:rgba(8,12,22,.72); --line:rgba(163,255,43,.32);
+  --shadow:0 18px 34px rgba(60,220,120,.15);
+}
+
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 35%,#123f28,#050b08 75%);font-family:Manrope,system-ui,sans-serif;color:var(--text)}
-button,input{font:inherit}
-button{border:0}
-#app{width:100vw;height:100vh;position:relative;overflow:hidden}
-#table{
- position:absolute;inset:0;background:
- radial-gradient(ellipse at center,rgba(35,125,76,.35),transparent 58%),
- repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 2px,transparent 2px 8px),
- linear-gradient(135deg,var(--felt),var(--felt2));
- box-shadow:inset 0 0 130px rgba(0,0,0,.72);
+html,body{margin:0;width:100%;height:100%;overflow:hidden;
+  background:var(--bg);color:var(--text);
+  font-family:Manrope,system-ui,sans-serif;}
+button,input{font:inherit;color:inherit;border:0;background:none}
+
+/* ============================================================
+   СТОЛ + ФОН
+   ============================================================ */
+#app{position:fixed;inset:0;overflow:hidden}
+#bg{
+  position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse at 50% 40%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 60%),
+    radial-gradient(ellipse at 50% 50%,var(--table-a),var(--table-c) 55%,var(--table-b) 100%);
 }
-#table:after{content:"";position:absolute;inset:14px;border:1px solid rgba(232,197,106,.16);border-radius:28px;pointer-events:none}
-.topbar{position:absolute;z-index:50;left:0;right:0;top:0;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:linear-gradient(180deg,rgba(3,8,5,.86),rgba(3,8,5,.35),transparent)}
-.brand{display:flex;align-items:center;gap:10px}
-.brand-mark{width:35px;height:35px;border:1px solid rgba(232,197,106,.7);border-radius:10px;display:grid;place-items:center;color:var(--gold);font-size:18px;background:rgba(0,0,0,.22);box-shadow:0 0 22px rgba(232,197,106,.08)}
-.brand-name{font-weight:800;letter-spacing:1.4px;font-size:13px}
-.room-pill,.status-pill{border:1px solid rgba(232,197,106,.35);background:rgba(0,0,0,.26);border-radius:999px;padding:7px 11px;color:var(--gold);font-size:11px}
+#bg::before{
+  content:"";position:absolute;inset:0;
+  background:
+    repeating-linear-gradient(92deg,rgba(255,255,255,.014) 0 1px,transparent 1px 7px),
+    repeating-linear-gradient(0deg,rgba(0,0,0,.02) 0 1px,transparent 1px 6px);
+  opacity:.7;
+}
+#bg::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse at center,transparent 32%,rgba(0,0,0,.55) 100%);
+  pointer-events:none;
+}
+.waves{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:
+    radial-gradient(ellipse at 30% 40%,rgba(255,255,255,.05),transparent 40%),
+    radial-gradient(ellipse at 70% 60%,rgba(255,255,255,.04),transparent 40%);
+  animation:waveMove 22s ease-in-out infinite alternate;
+}
+@keyframes waveMove{
+  from{transform:translate(-4%,-2%) scale(1.05)}
+  to{transform:translate(4%,2%) scale(1.1)}
+}
+.bokeh{
+  position:absolute;inset:0;z-index:2;pointer-events:none;opacity:.35;
+  background:
+    radial-gradient(circle at 15% 20%,var(--accent) 0 1px,transparent 2px),
+    radial-gradient(circle at 85% 30%,var(--accent) 0 1px,transparent 2px),
+    radial-gradient(circle at 40% 80%,var(--accent) 0 1px,transparent 2px),
+    radial-gradient(circle at 70% 65%,var(--accent) 0 1px,transparent 2px);
+  background-size:340px 280px,420px 380px,300px 320px,480px 400px;
+  animation:bokehDrift 40s linear infinite;
+}
+@keyframes bokehDrift{to{background-position:340px 280px,-420px 380px,300px -320px,-480px -400px}}
+body.no-anim .waves,body.no-anim .bokeh{animation:none}
+
+/* ============================================================
+   ТОПБАР
+   ============================================================ */
+.topbar{
+  position:absolute;z-index:60;left:0;right:0;top:0;height:62px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;
+  background:linear-gradient(180deg,var(--glass),transparent);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{
+  width:40px;height:40px;border-radius:12px;
+  display:grid;place-items:center;
+  color:var(--accent);font-size:22px;font-weight:900;
+  border:1px solid var(--line);
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 14%,transparent),rgba(0,0,0,.3));
+  box-shadow:inset 0 1px rgba(255,255,255,.1),0 0 20px color-mix(in srgb,var(--accent) 25%,transparent);
+}
+.brand-name{font-weight:800;letter-spacing:2px;font-size:13px}
+.brand-name small{color:var(--muted);font-weight:600}
+.pill{
+  padding:7px 14px;border-radius:999px;
+  border:1px solid var(--line);
+  background:var(--glass);
+  color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.5px;
+  backdrop-filter:blur(10px);
+}
 .top-actions{display:flex;gap:8px;align-items:center}
-.icon-btn{height:36px;min-width:36px;border-radius:10px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer}
-.icon-btn:hover{border-color:rgba(232,197,106,.55);color:var(--gold)}
-.seat{position:absolute;z-index:20;display:flex;flex-direction:column;align-items:center;gap:7px;min-width:90px}
-.seat.top{top:62px;left:50%;transform:translateX(-50%)}
-.seat.left{left:18px;top:42%;transform:translateY(-50%)}
-.seat.right{right:18px;top:42%;transform:translateY(-50%)}
-.profile{display:flex;flex-direction:column;align-items:center;position:relative}
-.avatar{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#243e31,#0b1710);border:2px solid rgba(255,255,255,.35);box-shadow:0 8px 18px rgba(0,0,0,.35);font-weight:800}
-.avatar.bot{border-color:rgba(92,169,255,.7)}
-.name{font-size:11px;font-weight:700;margin-top:-4px;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.58);white-space:nowrap}
-.turn-ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--gold);box-shadow:0 0 18px rgba(232,197,106,.65);animation:pulse 1.1s infinite}
-@keyframes pulse{50%{opacity:.35;transform:scale(1.08)}}
-.role{font-size:9px;color:var(--muted)}
-.opp-hand{display:flex;justify-content:center}
-.back{width:28px;height:40px;margin-left:-14px;border-radius:5px;border:1px solid rgba(232,197,106,.85);background:
- repeating-linear-gradient(45deg,rgba(232,197,106,.18) 0 2px,transparent 2px 7px),
- radial-gradient(circle,#194b78,#081e35);box-shadow:-2px 3px 7px rgba(0,0,0,.4)}
-.back:first-child{margin-left:0}
-.seat.left .opp-hand,.seat.right .opp-hand{flex-direction:column}
-.seat.left .back,.seat.right .back{margin-left:0;margin-top:-28px;width:40px;height:28px}
-.seat.left .back:first-child,.seat.right .back:first-child{margin-top:0}
-#center{position:absolute;z-index:10;left:50%;top:48%;transform:translate(-50%,-50%);width:min(760px,72vw);height:300px}
-#deck{position:absolute;left:0;top:50%;transform:translateY(-50%);width:var(--cardw);height:var(--cardh)}
-.deck-card{width:100%;height:100%;border-radius:8px;border:2px solid var(--gold2);background:
- repeating-linear-gradient(45deg,rgba(232,197,106,.16) 0 2px,transparent 2px 8px),
- radial-gradient(circle at center,#1d4f7e,#081f37);box-shadow:var(--shadow);display:grid;place-items:center}
-.deck-logo{width:58%;height:58%;border:1px solid rgba(232,197,106,.7);border-radius:50%;display:grid;place-items:center;color:var(--gold);font-size:23px}
-#deckCount{position:absolute;right:-11px;bottom:-9px;padding:3px 7px;border-radius:999px;background:#070d09;border:1px solid rgba(232,197,106,.45);color:var(--gold);font-size:10px;font-weight:800}
-#trump{position:absolute;left:28px;top:22px;z-index:-1;transform:rotate(8deg)}
-#pairs{position:absolute;left:105px;right:0;top:0;bottom:0;display:flex;flex-wrap:wrap;align-content:center;justify-content:center;gap:15px}
-.pair{position:relative;width:calc(var(--cardw) + 22px);height:var(--cardh)}
-.pair .card{position:absolute;left:0;top:0}
-.pair .card.def{left:19px;top:14px;z-index:2}
-.card{width:var(--cardw);height:var(--cardh);border-radius:8px;background:linear-gradient(145deg,#fff,#ece9df);color:#171717;border:1px solid rgba(0,0,0,.25);box-shadow:var(--shadow);position:relative;overflow:hidden}
-.card.red{color:#c62e36}
-.card .corner{position:absolute;top:5px;left:7px;text-align:center;line-height:.92;font-weight:800}
-.card .corner b{font-size:20px;display:block}
-.card .corner span{font-size:15px}
-.card .corner.bottom{top:auto;left:auto;right:7px;bottom:5px;transform:rotate(180deg)}
-.card .center-suit{position:absolute;inset:0;display:grid;place-items:center;font-size:42px;opacity:.94}
-.card .shine{position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.55),transparent 25%,transparent 75%,rgba(0,0,0,.05));pointer-events:none}
-.card.clickable{cursor:pointer;transition:transform .14s,filter .14s}
-.card.clickable:hover{transform:translateY(-13px) scale(1.025);filter:brightness(1.04)}
-.card.playable{box-shadow:0 0 0 2px rgba(232,197,106,.7),0 14px 35px rgba(0,0,0,.45)}
-.my-zone{position:absolute;z-index:30;left:50%;bottom:8px;transform:translateX(-50%);width:min(1000px,96vw);display:flex;flex-direction:column;align-items:center}
-#message{min-height:31px;max-width:80%;padding:7px 16px;border-radius:999px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.09);font-size:11px;text-align:center;color:var(--gold);backdrop-filter:blur(8px)}
-.actions{display:flex;gap:9px;margin:7px 0 6px;min-height:38px}
-.action{padding:9px 18px;border-radius:11px;font-size:11px;font-weight:800;cursor:pointer;box-shadow:0 7px 16px rgba(0,0,0,.25);transition:.15s}
-.action:hover{transform:translateY(-1px)}
-.action:disabled{opacity:.35;cursor:not-allowed;transform:none}
-.take{background:linear-gradient(135deg,#d94b4b,#a92f39);color:#fff}
-.done{background:linear-gradient(135deg,#e8c56a,#bd8f30);color:#17130a}
-.pass{background:linear-gradient(135deg,#4d94df,#3168a7);color:#fff}
-.hand{display:flex;justify-content:center;align-items:flex-end;width:100%;height:118px;padding:0 10px}
-.hand .wrap{margin-left:-34px;position:relative}
-.hand .wrap:first-child{margin-left:0}
-.hand .wrap .card{cursor:pointer}
-.lobby,.modal-layer{position:absolute;z-index:1000;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,7,4,.78);backdrop-filter:blur(10px)}
-.panel{width:min(470px,calc(100% - 28px));max-height:92vh;overflow:auto;border:1px solid rgba(232,197,106,.25);border-radius:22px;background:linear-gradient(145deg,rgba(18,30,22,.98),rgba(7,14,10,.98));box-shadow:0 28px 90px rgba(0,0,0,.65);padding:25px}
-.hero{text-align:center;margin-bottom:20px}
-.hero .suits{font-size:20px;color:var(--gold);letter-spacing:8px}
-.hero h1{font-size:28px;margin:8px 0 3px;letter-spacing:1px}
-.hero p{margin:0;color:var(--muted);font-size:11px}
-.field{margin:11px 0}.label{display:block;font-size:10px;color:var(--muted);margin:0 0 6px 3px}
-.input{width:100%;height:43px;border-radius:11px;border:1px solid rgba(255,255,255,.1);background:#09130d;color:#fff;padding:0 13px;outline:none}
-.input:focus{border-color:rgba(232,197,106,.65)}
-.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.mode{padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:rgba(255,255,255,.035);color:#fff;cursor:pointer;text-align:left}
-.mode strong{display:block;font-size:12px}.mode small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
-.mode:hover{border-color:rgba(232,197,106,.5)}
-.primary{width:100%;height:45px;border-radius:12px;background:linear-gradient(135deg,#e8c56a,#b8892c);color:#17130a;font-weight:900;cursor:pointer;margin-top:9px}
-.secondary{width:100%;height:42px;border-radius:12px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer;margin-top:8px}
-.row{display:flex;gap:8px}.row>*{flex:1}
-.divider{height:1px;background:rgba(255,255,255,.08);margin:17px 0}
-.status{min-height:17px;text-align:center;color:var(--gold);font-size:10px;margin-top:8px}
-.sani{margin-top:17px;text-align:center;color:var(--muted);font-size:9px}.sani b{color:var(--gold);letter-spacing:2px}
-.modal-layer{display:none}.modal{width:min(560px,calc(100% - 28px));max-height:88vh;overflow:auto;border-radius:20px;border:1px solid rgba(232,197,106,.28);background:#0b1510;padding:24px;box-shadow:0 25px 80px rgba(0,0,0,.65)}
-.modal h2{margin:0 0 12px;color:var(--gold);font-size:20px}.modal p,.modal li{color:#c8d2ca;font-size:12px;line-height:1.55}.modal li{margin:7px 0}
-.close{float:right;background:none;color:#a9b5ab;font-size:24px;cursor:pointer}
-.result{text-align:center}.result .big{font-size:34px;font-weight:900;color:var(--gold);margin:7px}
-.toast{position:absolute;z-index:1500;left:50%;top:72px;transform:translateX(-50%) translateY(-15px);opacity:0;pointer-events:none;background:#09120d;border:1px solid rgba(232,197,106,.45);padding:9px 14px;border-radius:999px;font-size:11px;color:#fff;transition:.25s}
-.toast.show{opacity:1;transform:translateX(-50%)}
-@media(max-width:900px){:root{--cardw:64px;--cardh:92px}.hand{height:100px}.hand .wrap{margin-left:-27px}#center{width:78vw;height:260px}.seat.left{left:5px}.seat.right{right:5px}}
-@media(max-width:600px){:root{--cardw:51px;--cardh:74px}.topbar{height:48px;padding:0 9px}.brand-name{display:none}.brand-mark{width:31px;height:31px}.room-pill{font-size:9px;padding:6px 8px}.icon-btn{height:32px;min-width:32px}.seat.top{top:53px}.seat.left{left:2px}.seat.right{right:2px}.avatar{width:39px;height:39px}.name{font-size:9px}.back{width:22px;height:31px;margin-left:-11px}.seat.left .back,.seat.right .back{width:31px;height:22px;margin-top:-22px}.center-suit{font-size:30px!important}.card .corner b{font-size:16px}.card .corner span{font-size:12px}#center{top:43%;width:86vw;height:210px}.actions{gap:5px}.action{padding:8px 11px;font-size:9px}.my-zone{bottom:2px}.hand{height:79px}.hand .wrap{margin-left:-20px}#message{max-width:94%;font-size:9px;padding:6px 11px}.panel{padding:18px}.hero h1{font-size:23px}.mode-grid{grid-template-columns:1fr}.modal{padding:18px}}
-
-/* SANI GROUP ULTRA PREMIUM LAYER */
-.count-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.count{height:38px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);color:#dbe5dd;font-size:10px;font-weight:800;cursor:pointer}.count.active{color:#17130a;background:linear-gradient(135deg,#e8c56a,#b8892c);border-color:rgba(232,197,106,.7);box-shadow:inset 0 1px rgba(255,255,255,.4),0 8px 18px rgba(0,0,0,.2)}
-#roundHud{position:absolute;left:50%;top:3px;transform:translateX(-50%);z-index:8;min-width:170px;padding:7px 15px;border:1px solid rgba(232,197,106,.16);border-radius:999px;background:rgba(3,12,7,.48);backdrop-filter:blur(12px);text-align:center;box-shadow:0 10px 25px rgba(0,0,0,.16)}#roundLabel{display:block;font-size:8px;letter-spacing:2px;color:var(--muted)}#turnLabel{display:block;margin-top:1px;font-size:10px;letter-spacing:1px;color:var(--gold)}
-
-#table{background:
- radial-gradient(ellipse at 50% 38%,rgba(64,190,116,.24),transparent 34%),
- radial-gradient(ellipse at 50% 50%,rgba(0,0,0,.0) 35%,rgba(0,0,0,.52) 100%),
- repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 5px),
- repeating-linear-gradient(90deg,rgba(0,0,0,.018) 0 1px,transparent 1px 7px),
- linear-gradient(135deg,#0a6339 0%,#074427 42%,#052d1c 100%);
+.icon-btn{
+  height:38px;min-width:38px;padding:0 10px;border-radius:11px;
+  background:var(--glass);border:1px solid var(--line);
+  color:var(--text);cursor:pointer;font-size:16px;
+  transition:var(--trans);
 }
-#table:before{content:"SANI GROUP";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-8deg);font-size:clamp(70px,12vw,180px);font-weight:900;letter-spacing:.18em;color:rgba(255,255,255,.025);white-space:nowrap;pointer-events:none}
-.topbar{height:70px;padding:0 24px;background:linear-gradient(180deg,rgba(1,7,4,.94),rgba(1,7,4,.46),transparent);border-bottom:1px solid rgba(232,197,106,.07)}
-.brand-mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(145deg,rgba(232,197,106,.16),rgba(0,0,0,.32));box-shadow:inset 0 1px rgba(255,255,255,.12),0 10px 28px rgba(0,0,0,.25)}
-.brand-name{font-size:12px;letter-spacing:2px}
-.status-pill,.room-pill{box-shadow:inset 0 1px rgba(255,255,255,.08),0 8px 22px rgba(0,0,0,.18);backdrop-filter:blur(12px)}
-.icon-btn{box-shadow:inset 0 1px rgba(255,255,255,.08),0 8px 20px rgba(0,0,0,.18);backdrop-filter:blur(12px)}
-.seat{filter:drop-shadow(0 12px 18px rgba(0,0,0,.24))}
-.avatar{background:radial-gradient(circle at 35% 25%,#315b45,#0a1b11 70%);border-color:rgba(255,255,255,.25);box-shadow:inset 0 1px rgba(255,255,255,.2),0 12px 28px rgba(0,0,0,.35)}
-.avatar.bot{background:radial-gradient(circle at 35% 25%,#2d5278,#071725 72%)}
-.name{border:1px solid rgba(255,255,255,.07);backdrop-filter:blur(8px)}
-#center{width:min(900px,78vw);height:340px}
-#center:before{content:"";position:absolute;inset:8% 4%;border:1px solid rgba(232,197,106,.10);border-radius:38px;background:radial-gradient(ellipse at center,rgba(255,255,255,.025),transparent 64%);box-shadow:inset 0 0 70px rgba(0,0,0,.14),0 25px 80px rgba(0,0,0,.12);pointer-events:none}
-#deck{filter:drop-shadow(0 18px 25px rgba(0,0,0,.38))}
-.deck-card{border-radius:11px;background:repeating-linear-gradient(45deg,rgba(232,197,106,.18) 0 2px,transparent 2px 7px),radial-gradient(circle at 30% 20%,#315f89,#071d32 72%);box-shadow:inset 0 1px rgba(255,255,255,.25),0 18px 35px rgba(0,0,0,.48)}
-.deck-logo{border-width:2px;background:rgba(0,0,0,.15);box-shadow:inset 0 0 20px rgba(232,197,106,.08),0 0 18px rgba(232,197,106,.12)}
-#deckCount{box-shadow:0 6px 16px rgba(0,0,0,.35)}
-#trump{filter:drop-shadow(0 12px 20px rgba(0,0,0,.4))}
-.card{border-radius:11px;background:linear-gradient(145deg,#fffefb 0%,#f5f1e7 52%,#dfd9cc 100%);box-shadow:inset 0 1px rgba(255,255,255,.9),inset 0 -1px rgba(0,0,0,.12),0 17px 32px rgba(0,0,0,.43);border-color:rgba(20,20,20,.28)}
-.card:after{content:"";position:absolute;inset:3px;border:1px solid rgba(0,0,0,.07);border-radius:8px;pointer-events:none}
-.card .center-suit{font-size:46px;text-shadow:0 2px 4px rgba(0,0,0,.12)}
-.card.clickable:hover{transform:translateY(-18px) scale(1.035);box-shadow:inset 0 1px rgba(255,255,255,.95),0 25px 42px rgba(0,0,0,.48)}
-.hand .wrap{transition:transform .15s;transform-origin:bottom center}
-.hand .wrap:hover{z-index:40}
-.pair{filter:drop-shadow(0 15px 23px rgba(0,0,0,.28))}
-.pair .card.def{box-shadow:inset 0 1px rgba(255,255,255,.9),0 16px 32px rgba(0,0,0,.48),0 0 0 1px rgba(232,197,106,.2)}
-.my-zone{bottom:5px}
-#message{min-height:36px;padding:8px 20px;border-color:rgba(232,197,106,.15);box-shadow:0 12px 28px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.06)}
-.action{min-width:108px;height:42px;letter-spacing:.7px;border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px rgba(255,255,255,.18),0 12px 24px rgba(0,0,0,.25)}
-.take{background:linear-gradient(135deg,#ed5960,#9d2631)}
-.done{background:linear-gradient(135deg,#f2d47c,#ae7c1e)}
-.pass{background:linear-gradient(135deg,#63a9ef,#285b96)}
-.lobby{background:radial-gradient(circle at 50% 25%,rgba(34,112,70,.22),rgba(2,7,4,.88) 55%),rgba(2,7,4,.82)}
-.panel{background:linear-gradient(145deg,rgba(18,33,24,.97),rgba(5,12,8,.98));border-color:rgba(232,197,106,.22);box-shadow:0 35px 110px rgba(0,0,0,.72),inset 0 1px rgba(255,255,255,.06)}
-.hero h1{font-size:36px;letter-spacing:5px;text-shadow:0 7px 30px rgba(232,197,106,.12)}
-.hero .suits{font-size:22px;text-shadow:0 0 24px rgba(232,197,106,.2)}
-.mode{background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));box-shadow:inset 0 1px rgba(255,255,255,.05)}
-.mode:hover{transform:translateY(-2px);box-shadow:0 12px 25px rgba(0,0,0,.2)}
-.primary{box-shadow:inset 0 1px rgba(255,255,255,.35),0 12px 26px rgba(0,0,0,.28)}
-.secondary{box-shadow:inset 0 1px rgba(255,255,255,.06)}
-.modal{background:linear-gradient(145deg,#102018,#07100b);box-shadow:0 35px 100px rgba(0,0,0,.72),inset 0 1px rgba(255,255,255,.05)}
-@media(max-width:900px){#center{width:84vw;height:300px}.topbar{padding:0 12px}.brand-name{display:none}}
-@media(max-width:600px){#center{width:91vw;height:230px}.hero h1{font-size:29px}.topbar{height:55px}.my-zone{bottom:1px}.action{min-width:0;padding:8px 13px}}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
 
-</style>
+/* ============================================================
+   СТОЛ / ЦЕНТР
+   ============================================================ */
+#center{
+  position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:min(900px,86vw);height:min(360px,42vh);
+  z-index:10;
+}
+#deck{
+  position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:var(--cw);height:var(--ch);
+  cursor:default;
+}
+.deck-card{
+  width:100%;height:100%;border-radius:var(--radius);
+  border:2px solid var(--accent-deep);
+  background:
+    repeating-linear-gradient(45deg,color-mix(in srgb,var(--accent) 20%,transparent) 0 2px,transparent 2px 8px),
+    radial-gradient(circle at 30% 20%,color-mix(in srgb,var(--accent) 40%,#1a3050),#061827 72%);
+  box-shadow:var(--shadow),inset 0 1px rgba(255,255,255,.18);
+  display:grid;place-items:center;
+}
+.deck-logo{
+  width:56%;height:56%;border-radius:50%;
+  border:2px solid var(--accent);
+  display:grid;place-items:center;
+  color:var(--accent-hi);font-size:24px;font-weight:900;
+}
+#deckCount{
+  position:absolute;right:-8px;bottom:-8px;
+  padding:3px 8px;border-radius:999px;
+  background:var(--bg);border:1px solid var(--accent);
+  color:var(--accent);font-size:11px;font-weight:800;
+}
+#trump{
+  position:absolute;left:30px;top:24px;z-index:-1;
+  transform:rotate(9deg);
+}
+#roundHud{
+  position:absolute;left:50%;top:-12px;transform:translateX(-50%);
+  min-width:220px;padding:8px 18px;
+  border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);
+  text-align:center;backdrop-filter:blur(12px);
+  box-shadow:0 12px 30px rgba(0,0,0,.4);
+}
+#roundLabel{display:block;font-size:8px;letter-spacing:3px;color:var(--muted)}
+#turnLabel{display:block;margin-top:2px;font-size:12px;font-weight:800;color:var(--accent)}
+#pairs{
+  position:absolute;left:105px;right:0;top:0;bottom:0;
+  display:flex;flex-wrap:wrap;align-content:center;justify-content:center;
+  gap:14px;
+}
+.pair{
+  position:relative;width:calc(var(--cw) + 22px);height:var(--ch);
+  filter:drop-shadow(0 12px 20px rgba(0,0,0,.3));
+  animation:dealIn .28s ease both;
+}
+@keyframes dealIn{from{opacity:0;transform:translateY(14px) scale(.94)}to{opacity:1;transform:none}}
+.pair .card{position:absolute;left:0;top:0}
+.pair .card.def{left:20px;top:15px;z-index:2}
 
-<style>
-/* SANI GROUP — SIGNATURE EDITION */
-:root{--gold:#f4d47b;--gold-hi:#fff0b1;--ink:#06100a}
-body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:2000;background:radial-gradient(circle at 50% -10%,rgba(255,255,255,.08),transparent 35%),linear-gradient(115deg,transparent 0 47%,rgba(255,255,255,.018) 50%,transparent 53%);mix-blend-mode:screen;opacity:.7}
-#table{box-shadow:inset 0 0 180px rgba(0,0,0,.48),inset 0 0 0 1px rgba(255,255,255,.035)}
-#table:after{box-shadow:inset 0 0 50px rgba(0,0,0,.18),0 0 80px rgba(0,0,0,.2)}
-.topbar{backdrop-filter:blur(14px)}
-.brand-mark{position:relative;overflow:hidden;border:1px solid rgba(244,212,123,.3)!important;color:var(--gold);font-size:19px;font-weight:900;display:grid;place-items:center}
-.brand-mark:after{content:"";position:absolute;inset:-50%;background:linear-gradient(110deg,transparent 40%,rgba(255,255,255,.22) 50%,transparent 60%);transform:translateX(-50%) rotate(15deg);animation:logoShine 5s infinite}
-@keyframes logoShine{0%,72%{transform:translateX(-80%) rotate(15deg)}88%,100%{transform:translateX(80%) rotate(15deg)}}
-.status-pill{border-color:rgba(244,212,123,.22)!important;color:var(--gold-hi)!important}
-#roundHud{border-color:rgba(244,212,123,.28);box-shadow:0 0 0 1px rgba(244,212,123,.04),0 12px 35px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.09)}
-#turnLabel{font-weight:900;text-shadow:0 0 18px rgba(244,212,123,.24)}
-.seat .profile{transition:transform .25s,filter .25s}
-.seat:has(.turn-ring) .profile{transform:translateY(-3px);filter:drop-shadow(0 0 14px rgba(244,212,123,.28))}
-.avatar{position:relative}
-.turn-ring{position:absolute;inset:-5px;border:2px solid var(--gold);border-radius:50%;box-shadow:0 0 0 3px rgba(244,212,123,.08),0 0 24px rgba(244,212,123,.35);animation:pulseRing 1.6s infinite}
-@keyframes pulseRing{50%{transform:scale(1.08);opacity:.65}}
-.card{isolation:isolate;transform-origin:center bottom}
-.card:before{content:"";position:absolute;inset:6px;border-radius:7px;border:1px solid rgba(255,255,255,.42);pointer-events:none;z-index:1}
-.card .center-suit{font-family:Georgia,serif;font-weight:900;filter:drop-shadow(0 3px 4px rgba(0,0,0,.12))}
-.card .corner b{text-shadow:0 1px 0 #fff,0 2px 3px rgba(0,0,0,.08)}
-.card.playable{animation:cardReady 1.7s ease-in-out infinite}
-@keyframes cardReady{50%{box-shadow:0 0 0 3px rgba(244,212,123,.42),0 20px 40px rgba(0,0,0,.46)}}
-.card.clickable:active{transform:translateY(-5px) scale(.99)!important}
-.pair{animation:dealIn .22s ease both}
-@keyframes dealIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
-#deck .deck-card{transition:transform .25s,filter .25s}
-#deck:hover .deck-card{transform:translateY(-4px) rotate(-1deg);filter:brightness(1.08)}
-#trump .card{box-shadow:0 0 0 2px rgba(244,212,123,.24),0 18px 35px rgba(0,0,0,.5)}
-#message{background:linear-gradient(180deg,rgba(8,22,14,.8),rgba(3,10,6,.68));backdrop-filter:blur(16px);font-weight:700;letter-spacing:.15px}
-.action{position:relative;overflow:hidden;font-weight:900;transition:transform .16s,filter .16s,box-shadow .16s}
-.action:after,.primary:after,.secondary:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.16) 50%,transparent 75%);transform:translateX(-120%);transition:transform .55s}
-.action:hover:after,.primary:hover:after,.secondary:hover:after{transform:translateX(120%)}
-.action:hover{transform:translateY(-2px);filter:brightness(1.07);box-shadow:0 16px 30px rgba(0,0,0,.34)}
-.action:active{transform:translateY(1px)}
-.lobby{background:radial-gradient(circle at 50% 20%,rgba(62,165,102,.2),transparent 34%),radial-gradient(circle at 50% 100%,rgba(244,212,123,.06),transparent 40%),rgba(1,6,3,.88)}
-.panel{position:relative;overflow:hidden}
-.panel:before{content:"";position:absolute;left:-30%;right:-30%;top:-55%;height:55%;background:radial-gradient(ellipse,rgba(244,212,123,.1),transparent 65%);pointer-events:none}
-.hero h1{font-family:Georgia,serif;font-weight:900;letter-spacing:8px;color:#fff6d5;text-shadow:0 5px 35px rgba(244,212,123,.16)}
-.hero p{letter-spacing:2px}
-.mode{position:relative;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s}
-.mode:after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 20%,rgba(244,212,123,.06) 50%,transparent 80%);transform:translateX(-100%);transition:transform .5s}
-.mode:hover:after{transform:translateX(100%)}
-.mode:hover{border-color:rgba(244,212,123,.45);box-shadow:0 18px 36px rgba(0,0,0,.3)}
-.primary,.secondary{position:relative;overflow:hidden}
-.input{transition:border-color .2s,box-shadow .2s,background .2s}
-.input:focus{border-color:rgba(244,212,123,.6)!important;box-shadow:0 0 0 3px rgba(244,212,123,.08),0 12px 25px rgba(0,0,0,.2);outline:none}
-.modal-layer{backdrop-filter:blur(10px)}
-.modal{animation:modalIn .2s ease both}
-@keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
-#gameover .big{text-shadow:0 0 35px rgba(244,212,123,.25);letter-spacing:2px}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+/* ============================================================
+   КАРТЫ — с SVG-мастями и pip-раскладкой
+   ============================================================ */
+.card{
+  width:var(--cw);height:var(--ch);
+  border-radius:var(--radius);
+  background:linear-gradient(145deg,var(--card-face),var(--card-shade));
+  color:var(--black);
+  border:1px solid rgba(0,0,0,.3);
+  box-shadow:inset 0 1px rgba(255,255,255,.9),inset 0 -1px rgba(0,0,0,.12),var(--shadow);
+  position:relative;overflow:hidden;
+  isolation:isolate;
+  transition:transform var(--trans),box-shadow var(--trans),filter var(--trans);
+  transform-origin:center bottom;
+}
+.card.red{color:var(--red)}
+.card::after{
+  content:"";position:absolute;inset:3px;border-radius:8px;
+  border:1px solid rgba(0,0,0,.06);pointer-events:none;
+}
+.card .corner{
+  position:absolute;top:5px;left:7px;
+  display:flex;flex-direction:column;align-items:center;
+  line-height:1;font-weight:900;
+  text-shadow:0 1px rgba(255,255,255,.7);
+}
+.card .corner b{font-family:Georgia,serif;font-size:19px;letter-spacing:-.5px}
+.card .corner svg{width:14px;height:14px;margin-top:1px}
+.card .corner.bottom{top:auto;left:auto;right:7px;bottom:5px;transform:rotate(180deg)}
+.card .pips{
+  position:absolute;inset:14% 16%;
+}
+.card .pip{
+  position:absolute;transform:translate(-50%,-50%);
+}
+.card .pip svg{width:100%;height:100%;display:block}
+.card.face .pip{width:26%;height:26%}
+.card .face-letter{
+  position:absolute;inset:0;display:grid;place-items:center;
+  font-family:Georgia,serif;font-weight:900;
+  font-size:calc(var(--cw) * .55);
+  letter-spacing:-2px;
+  color:currentColor;
+  text-shadow:0 3px 4px rgba(0,0,0,.15);
+}
+.card.clickable{cursor:pointer}
+.card.clickable:hover{
+  transform:translateY(-16px) scale(1.04);
+  box-shadow:0 26px 42px rgba(0,0,0,.5),0 0 0 2px color-mix(in srgb,var(--accent) 70%,transparent);
+  filter:brightness(1.04);
+}
+.card.playable{
+  box-shadow:0 0 0 2px var(--accent),0 0 26px color-mix(in srgb,var(--accent) 40%,transparent),var(--shadow);
+  animation:cardPulse 1.8s ease-in-out infinite;
+}
+@keyframes cardPulse{50%{box-shadow:0 0 0 2px var(--accent-hi),0 0 34px color-mix(in srgb,var(--accent) 55%,transparent),var(--shadow)}}
+.card.disabled{opacity:.42;filter:grayscale(.35)}
+.card.back{
+  background:
+    repeating-linear-gradient(45deg,color-mix(in srgb,var(--accent) 22%,transparent) 0 2px,transparent 2px 7px),
+    radial-gradient(circle at 30% 25%,color-mix(in srgb,var(--accent) 30%,#1a3050),#061827 70%);
+  border:2px solid var(--accent-deep);
+}
+.card.back::after{display:none}
+
+/* ============================================================
+   МОЯ ЗОНА
+   ============================================================ */
+.my-zone{
+  position:absolute;z-index:40;
+  left:50%;bottom:6px;transform:translateX(-50%);
+  width:min(1080px,97vw);
+  display:flex;flex-direction:column;align-items:center;
+}
+#message{
+  min-height:34px;max-width:80%;padding:8px 18px;
+  border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);
+  font-size:12px;text-align:center;color:var(--accent);
+  backdrop-filter:blur(14px);
+  box-shadow:0 12px 28px rgba(0,0,0,.3);
+}
+.actions{display:flex;gap:10px;margin:8px 0 6px;min-height:38px}
+.action{
+  padding:11px 20px;min-width:104px;
+  border-radius:13px;
+  font-size:11px;font-weight:900;letter-spacing:.6px;
+  cursor:pointer;
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 12px 24px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.18);
+  transition:var(--trans);
+  position:relative;overflow:hidden;
+}
+.action:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.08)}
+.action:active:not(:disabled){transform:translateY(1px)}
+.action:disabled{opacity:.35;cursor:not-allowed}
+.action.take{background:linear-gradient(135deg,#e05a5a,#9a2129)}
+.action.done{background:linear-gradient(135deg,#f1d27b,#ad7d25)}
+.action.pass{background:linear-gradient(135deg,#5f9ee8,#2a5a96)}
+.hand{
+  display:flex;justify-content:center;align-items:flex-end;
+  width:100%;height:152px;padding:0 10px;
+  perspective:1100px;
+}
+.hand .wrap{
+  position:relative;
+  margin-left:-34px;
+  transition:transform var(--trans),filter var(--trans);
+  transform-origin:50% 100%;
+}
+.hand .wrap:first-child{margin-left:0}
+.hand .wrap:hover{
+  z-index:60;
+  transform:translateY(-22px) rotate(0deg) scale(1.055)!important;
+  filter:drop-shadow(0 14px 20px rgba(0,0,0,.4));
+}
+.hand .wrap .card{pointer-events:none}
+
+/* ============================================================
+   МЕСТА (АВАТАРЫ)
+   ============================================================ */
+.seat{
+  position:absolute;z-index:20;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  min-width:100px;
+}
+.seat.top{top:72px;left:50%;transform:translateX(-50%)}
+.seat.left{left:22px;top:46%;transform:translateY(-50%)}
+.seat.right{right:22px;top:46%;transform:translateY(-50%)}
+.profile{display:flex;flex-direction:column;align-items:center;position:relative}
+.avatar{
+  width:54px;height:54px;border-radius:50%;
+  display:grid;place-items:center;
+  font-weight:900;font-size:20px;
+  background:radial-gradient(circle at 35% 25%,#426653,#0a1b11 68%);
+  border:2px solid color-mix(in srgb,var(--accent) 55%,transparent);
+  box-shadow:0 12px 26px rgba(0,0,0,.5),inset 0 1px rgba(255,255,255,.15);
+  position:relative;
+}
+.avatar.bot{border-color:color-mix(in srgb,#5ca9ff 70%,transparent)}
+.turn-ring{
+  position:absolute;inset:-6px;border-radius:50%;
+  border:2px solid var(--accent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent),0 0 22px color-mix(in srgb,var(--accent) 55%,transparent);
+  animation:pulseRing 1.5s ease-in-out infinite;
+}
+@keyframes pulseRing{50%{transform:scale(1.08);opacity:.7}}
+.name{
+  font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:999px;
+  background:rgba(0,0,0,.7);border:1px solid var(--line);
+  white-space:nowrap;
+  margin-top:-4px;
+}
+.role{font-size:9px;color:var(--muted);letter-spacing:1px}
+.opp-hand{display:flex;justify-content:center}
+.opp-hand .card.back{width:26px;height:38px;margin-left:-16px;border-radius:5px}
+.opp-hand .card.back:first-child{margin-left:0}
+.seat.left .opp-hand,.seat.right .opp-hand{flex-direction:column}
+.seat.left .card.back,.seat.right .card.back{
+  width:38px;height:26px;
+  margin-left:0;margin-top:-26px;
+}
+.seat.left .card.back:first-child,.seat.right .card.back:first-child{margin-top:0}
+
+/* ============================================================
+   ЛОББИ
+   ============================================================ */
+.lobby{
+  position:absolute;inset:0;z-index:200;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 30%,color-mix(in srgb,var(--accent) 8%,transparent),transparent 40%),rgba(0,0,0,.86);
+  backdrop-filter:blur(14px);
+  transition:opacity .3s;
+}
+.panel{
+  width:min(500px,calc(100% - 28px));
+  max-height:94vh;overflow:auto;
+  border-radius:26px;
+  border:1px solid var(--line);
+  background:linear-gradient(145deg,color-mix(in srgb,var(--bg) 92%,var(--accent) 3%),var(--bg));
+  box-shadow:0 40px 110px rgba(0,0,0,.75),inset 0 1px rgba(255,255,255,.06);
+  padding:30px;
+  animation:panelIn .3s ease;
+}
+@keyframes panelIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+.hero{text-align:center;margin-bottom:22px}
+.hero .suits{font-size:22px;color:var(--accent);letter-spacing:8px;text-shadow:0 0 22px color-mix(in srgb,var(--accent) 40%,transparent)}
+.hero h1{
+  font-family:'Cinzel',Georgia,serif;
+  font-size:40px;letter-spacing:6px;margin:10px 0 4px;
+  background:linear-gradient(180deg,var(--accent-hi) 0,var(--accent) 45%,var(--accent-deep) 100%);
+  -webkit-background-clip:text;background-clip:text;
+  filter:drop-shadow(0 6px 22px rgba(0,0,0,.3));
+}
+.hero p{margin:0;color:var(--muted);font-size:11px;letter-spacing:2px}
+.field{margin:12px 0}
+.label{display:block;font-size:10px;color:var(--muted);margin:0 0 6px 4px;letter-spacing:1px}
+.input{
+  width:100%;height:46px;padding:0 14px;
+  border-radius:12px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 92%,#000),var(--bg));
+  border:1px solid var(--line);
+  color:var(--text);outline:none;
+  transition:var(--trans);
+}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode{
+  padding:16px;border-radius:14px;
+  border:1px solid var(--line);
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 6%,transparent),transparent);
+  color:var(--text);cursor:pointer;text-align:left;
+  transition:var(--trans);
+}
+.mode:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,.4)}
+.mode strong{display:block;font-size:13px;margin-bottom:3px}
+.mode small{display:block;color:var(--muted);font-size:10px}
+.count-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.count{
+  height:40px;border-radius:11px;
+  border:1px solid var(--line);
+  background:color-mix(in srgb,var(--accent) 4%,transparent);
+  color:var(--text);font-size:11px;font-weight:800;cursor:pointer;
+  transition:var(--trans);
+}
+.count.active{background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:var(--bg);border-color:var(--accent)}
+.count:hover:not(.active){border-color:var(--accent)}
+.primary{
+  width:100%;height:48px;border-radius:13px;
+  background:linear-gradient(135deg,var(--accent-hi),var(--accent),var(--accent-deep));
+  color:#1a1205;font-weight:900;font-size:13px;letter-spacing:1px;
+  cursor:pointer;margin-top:10px;
+  box-shadow:inset 0 1px rgba(255,255,255,.4),0 12px 26px rgba(0,0,0,.3);
+  transition:var(--trans);
+}
+.primary:hover{transform:translateY(-2px);filter:brightness(1.06)}
+.secondary{
+  width:100%;height:44px;border-radius:12px;
+  background:color-mix(in srgb,var(--accent) 6%,transparent);
+  border:1px solid var(--line);color:var(--text);
+  cursor:pointer;margin-top:8px;font-size:12px;
+  transition:var(--trans);
+}
+.secondary:hover{border-color:var(--accent);color:var(--accent)}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+.divider{height:1px;background:var(--line);margin:18px 0}
+.status{min-height:18px;text-align:center;color:var(--accent);font-size:11px;margin-top:8px}
+.sani{margin-top:18px;text-align:center;color:var(--muted);font-size:10px}
+.sani b{color:var(--accent);letter-spacing:2px}
+
+#roomBox{
+  display:none;margin-top:12px;padding:14px;
+  border:1px dashed var(--accent);border-radius:12px;text-align:center;
+}
+#roomCode{
+  font-size:32px;font-weight:900;letter-spacing:6px;
+  color:var(--accent);cursor:pointer;
+  font-family:monospace;
+}
+
+/* ============================================================
+   МОДАЛКИ
+   ============================================================ */
+.modal-layer{
+  position:absolute;inset:0;z-index:500;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.82);backdrop-filter:blur(10px);
+}
+.modal-layer.open{display:flex}
+.modal{
+  width:min(560px,calc(100% - 28px));
+  max-height:90vh;overflow:auto;
+  border-radius:22px;
+  border:1px solid var(--line);
+  background:linear-gradient(145deg,color-mix(in srgb,var(--bg) 92%,var(--accent) 3%),var(--bg));
+  padding:26px;
+  box-shadow:0 40px 110px rgba(0,0,0,.75);
+  animation:panelIn .25s ease;
+}
+.modal h2{margin:0 0 14px;color:var(--accent);font-size:22px;font-family:'Cinzel',serif;letter-spacing:2px}
+.modal p,.modal li{color:var(--text);font-size:13px;line-height:1.65}
+.modal li{margin:6px 0;color:var(--muted)}
+.close{float:right;font-size:24px;color:var(--muted);cursor:pointer;line-height:1}
+.close:hover{color:var(--accent)}
+.result{text-align:center}
+.result .big{
+  font-family:'Cinzel',serif;
+  font-size:38px;font-weight:900;
+  color:var(--accent);margin:10px 0 6px;letter-spacing:4px;
+  text-shadow:0 0 34px color-mix(in srgb,var(--accent) 50%,transparent);
+}
+
+/* ============================================================
+   НАСТРОЙКИ (панель сбоку)
+   ============================================================ */
+#settings{
+  position:absolute;top:0;right:0;height:100%;width:min(360px,92vw);
+  z-index:600;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 95%,var(--accent) 2%),var(--bg));
+  border-left:1px solid var(--line);
+  padding:22px;
+  transform:translateX(100%);
+  transition:transform .3s cubic-bezier(.3,.7,.3,1);
+  overflow-y:auto;
+  box-shadow:-30px 0 80px rgba(0,0,0,.6);
+}
+#settings.open{transform:none}
+#settings h3{
+  margin:0 0 18px;color:var(--accent);
+  font-family:'Cinzel',serif;letter-spacing:3px;font-size:16px;
+}
+.sect{margin-bottom:22px}
+.sect h4{
+  margin:0 0 10px;color:var(--muted);
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+}
+.theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.theme-btn{
+  aspect-ratio:1;border-radius:12px;
+  border:2px solid var(--line);cursor:pointer;
+  position:relative;
+  transition:var(--trans);
+  overflow:hidden;
+}
+.theme-btn.active{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+.theme-btn:hover{transform:scale(1.05)}
+.theme-btn::after{
+  content:attr(data-name);
+  position:absolute;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,.6);color:#fff;
+  font-size:9px;padding:3px 4px;text-align:center;
+  letter-spacing:.5px;
+}
+.toggle-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 50%,transparent);
+  font-size:12px;
+}
+.toggle{
+  width:42px;height:24px;border-radius:999px;
+  background:color-mix(in srgb,var(--accent) 20%,transparent);
+  border:1px solid var(--line);
+  position:relative;cursor:pointer;
+  transition:var(--trans);
+}
+.toggle::after{
+  content:"";position:absolute;top:2px;left:2px;
+  width:18px;height:18px;border-radius:50%;
+  background:var(--text);
+  transition:var(--trans);
+}
+.toggle.on{background:linear-gradient(135deg,var(--accent),var(--accent-deep))}
+.toggle.on::after{transform:translateX(18px);background:var(--bg)}
+.select{
+  height:36px;padding:0 10px;border-radius:9px;
+  background:color-mix(in srgb,var(--accent) 6%,transparent);
+  border:1px solid var(--line);
+  color:var(--text);font-size:12px;cursor:pointer;
+  outline:none;
+}
+
+/* ============================================================
+   ЭМОДЗИ + ЧАТ
+   ============================================================ */
+#emojiBar{
+  position:absolute;bottom:172px;left:50%;transform:translateX(-50%);
+  z-index:50;display:flex;gap:6px;
+  padding:7px 10px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);
+  backdrop-filter:blur(14px);
+  box-shadow:0 12px 30px rgba(0,0,0,.4);
+}
+.emoji-btn{
+  width:34px;height:34px;border-radius:50%;
+  font-size:19px;cursor:pointer;
+  background:transparent;
+  transition:var(--trans);
+}
+.emoji-btn:hover{background:color-mix(in srgb,var(--accent) 18%,transparent);transform:scale(1.15)}
+.float-emoji{
+  position:absolute;z-index:5000;
+  font-size:36px;pointer-events:none;
+  animation:floatUp 2.2s ease-out forwards;
+}
+@keyframes floatUp{
+  0%{opacity:1;transform:translate(-50%,0) scale(.6)}
+  30%{transform:translate(-50%,-40px) scale(1.2)}
+  100%{opacity:0;transform:translate(-50%,-120px) scale(.9)}
+}
+#chat{
+  position:absolute;left:12px;bottom:12px;z-index:50;
+  width:min(320px,80vw);max-height:280px;
+  display:flex;flex-direction:column;
+  padding:10px;border-radius:14px;
+  background:var(--glass);border:1px solid var(--line);
+  backdrop-filter:blur(14px);
+  box-shadow:0 16px 40px rgba(0,0,0,.4);
+  transition:var(--trans);
+}
+#chat.collapsed .chat-body{display:none}
+.chat-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.chat-head b{font-size:11px;color:var(--accent);letter-spacing:1px}
+.chat-body{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.chat-log{
+  max-height:160px;overflow-y:auto;
+  font-size:11px;color:var(--text);
+  padding:4px;line-height:1.5;
+}
+.chat-log .who{color:var(--accent);font-weight:700}
+.chat-quick{display:flex;gap:5px;flex-wrap:wrap}
+.chat-quick button{
+  padding:4px 9px;border-radius:999px;
+  background:color-mix(in srgb,var(--accent) 12%,transparent);
+  border:1px solid var(--line);
+  font-size:10px;cursor:pointer;
+}
+.chat-input{
+  height:32px;padding:0 10px;border-radius:9px;
+  background:color-mix(in srgb,var(--bg) 92%,#000);
+  border:1px solid var(--line);color:var(--text);
+  font-size:12px;outline:none;
+}
+.chat-input:focus{border-color:var(--accent)}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+#toast{
+  position:absolute;z-index:5000;left:50%;top:76px;
+  transform:translate(-50%,-14px);opacity:0;
+  pointer-events:none;
+  padding:10px 18px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--accent);
+  color:var(--text);font-size:12px;
+  backdrop-filter:blur(14px);
+  box-shadow:0 16px 40px rgba(0,0,0,.5);
+  transition:.25s;
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ============================================================
+   ЧАСТИЦЫ ПОБЕДЫ
+   ============================================================ */
+.confetti{
+  position:fixed;z-index:4000;pointer-events:none;
+  width:8px;height:14px;border-radius:2px;
+  top:-20px;
+  animation:confettiFall linear forwards;
+}
+@keyframes confettiFall{
+  to{transform:translateY(110vh) rotate(720deg);opacity:.15}
+}
+
+/* ============================================================
+   ТАЙМЕР ХОДА
+   ============================================================ */
+.turn-timer{
+  height:3px;border-radius:2px;background:var(--accent);
+  margin-top:4px;
+  transition:width 1s linear;
+}
+
+/* ============================================================
+   АДАПТИВ
+   ============================================================ */
+@media(max-width:900px){
+  :root{--cw:64px;--ch:92px}
+  .hand{height:124px}
+  .hand .wrap{margin-left:-27px}
+  #center{width:94vw;height:min(300px,42vh)}
+  #pairs{left:80px;gap:9px}
+  .pair{width:calc(var(--cw) + 15px)}
+  .pair .card.def{left:14px;top:11px}
+  .seat.left{left:5px}
+  .seat.right{right:5px}
+  .topbar{padding:0 10px}
+  .brand-name{display:none}
+}
+@media(max-width:520px){
+  :root{--cw:52px;--ch:76px}
+  .hand{height:106px}
+  .hand .wrap{margin-left:-23px}
+  .my-zone{bottom:0}
+  .action{padding:8px 10px;min-width:0;font-size:10px}
+  #message{font-size:10px;padding:6px 12px}
+  .card .corner b{font-size:15px}
+  .card .corner svg{width:11px;height:11px}
+  .hero h1{font-size:30px;letter-spacing:3px}
+  .panel{padding:22px}
+  .modal{padding:20px}
+  #emojiBar{bottom:142px}
+  #chat{width:220px}
+}
 </style>
 </head>
 <body>
 <div id="app">
- <div id="table"></div>
- <div class="topbar">
-   <div class="brand"><div class="brand-mark">♠</div><div class="brand-name">SANI GROUP • ДУРАК</div><div id="roomPill" class="room-pill" style="display:none"></div></div>
-   <div class="top-actions"><div id="statusPill" class="status-pill">МЕНЮ</div><button class="icon-btn" onclick="openRules()">?</button><button class="icon-btn" onclick="toggleMusic()" id="musicBtn">♪</button><button class="icon-btn" onclick="confirmMenu()">⌂</button></div>
- </div>
+  <div id="bg"></div>
+  <div class="waves"></div>
+  <div class="bokeh"></div>
 
- <div id="seat-top" class="seat top" style="display:none"></div>
- <div id="seat-left" class="seat left" style="display:none"></div>
- <div id="seat-right" class="seat right" style="display:none"></div>
-
- <div id="center" style="display:none">
-   <div id="roundHud"><span id="roundLabel">ПАРТИЯ</span><b id="turnLabel">ОЖИДАНИЕ</b></div>
-   <div id="deck"><div class="deck-card"><div class="deck-logo">♠</div></div><div id="deckCount">0</div><div id="trump"></div></div>
-   <div id="pairs"></div>
- </div>
-
- <div class="my-zone" id="myZone" style="display:none">
-   <div id="message">Ожидание игры…</div>
-   <div class="actions">
-     <button id="take" class="action take" onclick="action('take')">БЕРУ</button>
-     <button id="done" class="action done" onclick="action('done')">БИТО</button>
-     <button id="pass" class="action pass" onclick="action('pass')">ПАС</button>
-   </div>
-   <div id="hand" class="hand"></div>
- </div>
-
- <div id="toast" class="toast"></div>
-
- <div id="lobby" class="lobby">
-   <div class="panel">
-    <div class="hero"><div class="suits">♠ ♥ ♦ ♣</div><h1>ДУРАК</h1><p>Premium Edition · SANI GROUP</p></div>
-    <div class="field"><span class="label">ИМЯ ИГРОКА</span><input id="name" class="input" maxlength="12" value="Игрок"></div>
-    <div class="mode-grid">
-      <button class="mode" onclick="playBots()"><strong>🤖 Играть с ботом</strong><small>Только 1 + 1 · быстрый матч</small></button>
-      <button class="mode" onclick="createRoom()"><strong>🌐 Создать комнату</strong><small>Выберите размер стола ниже</small></button>
+  <!-- Топбар -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">♠</div>
+      <div class="brand-name">SANI GROUP <small>· ДУРАК</small></div>
+      <span id="roomPill" class="pill" style="display:none"></span>
     </div>
-    <div class="field"><span class="label">РАЗМЕР ОНЛАЙН-СТОЛА</span><div class="count-grid"><button id="cnt2" class="count active" onclick="setPlayers(2)">2 игрока</button><button id="cnt3" class="count" onclick="setPlayers(3)">3 игрока</button><button id="cnt4" class="count" onclick="setPlayers(4)">4 игрока</button></div></div>
-    <div class="divider"></div>
-    <div class="label">ВХОД В КОМНАТУ</div>
-    <div class="row"><input id="code" class="input" maxlength="6" placeholder="КОД"><button class="primary" style="margin:0" onclick="joinRoom()">ВОЙТИ</button></div>
-    <div id="roomBox" style="display:none;margin-top:12px;padding:12px;border:1px dashed rgba(232,197,106,.55);border-radius:12px;text-align:center">
-      <div class="label">КОД КОМНАТЫ</div><div id="roomCode" style="font-size:26px;font-weight:900;letter-spacing:5px;color:var(--gold);cursor:pointer" onclick="copyCode()">------</div>
+    <div class="top-actions">
+      <span id="statusPill" class="pill">МЕНЮ</span>
+      <button class="icon-btn" onclick="openModal('rules')" title="Правила">?</button>
+      <button class="icon-btn" id="soundBtn" onclick="toggleSound()" title="Звук">🔊</button>
+      <button class="icon-btn" onclick="toggleSettings()" title="Настройки">⚙</button>
+      <button class="icon-btn" onclick="confirmExit()" title="Выйти">⌂</button>
     </div>
-    <div id="lobbyStatus" class="status"></div>
-    <button class="secondary" onclick="openRules()">📖 Правила игры</button>
-    <button class="secondary" onclick="openAbout()">♠ SANI GROUP</button>
-    <div class="sani">Премиальная веб-версия · <b>SANI GROUP</b></div>
-   </div>
- </div>
+  </div>
 
- <div id="rules" class="modal-layer" onclick="layerClose(event,'rules')"><div class="modal">
-   <button class="close" onclick="closeModal('rules')">×</button><h2>Правила «Дурака»</h2>
-   <ul>
-    <li>Игра использует классическую колоду из 36 карт.</li>
-    <li>Каждому игроку раздаётся по 6 карт. Нижняя карта колоды определяет козырную масть.</li>
-    <li>Первым ходит игрок с младшим козырем.</li>
-    <li>Защита выполняется старшей картой той же масти или козырем. Козырь бьётся только старшим козырем.</li>
-    <li>Подкидывать можно карты достоинств, которые уже присутствуют на столе.</li>
-    <li>Защищающийся может нажать «БЕРУ», если не может или не хочет отбиваться.</li>
-    <li>Когда все карты отбиты, текущий атакующий завершает кон («БИТО»). После успешного отбоя право атаки переходит к отбивавшемуся.</li>
-    <li>После каждого кона игроки добирают карты до 6, пока колода не закончится.</li>
-    <li>После окончания колоды партия продолжается до финала. Последний игрок, у которого остаются карты, проигрывает и считается «дураком».</li>
-   </ul>
- </div></div>
+  <!-- Места -->
+  <div id="seat-top" class="seat top" style="display:none"></div>
+  <div id="seat-left" class="seat left" style="display:none"></div>
+  <div id="seat-right" class="seat right" style="display:none"></div>
 
- <div id="about" class="modal-layer" onclick="layerClose(event,'about')"><div class="modal" style="text-align:center">
-   <button class="close" onclick="closeModal('about')">×</button><div style="font-size:28px;color:var(--gold)">♠ ♥ ♦ ♣</div><h2>SANI GROUP</h2>
-   <p>Premium Card Games Studio</p><p>Современный игровой интерфейс, честная серверная логика и стабильная сетевая игра.</p>
-   <p style="color:var(--muted);font-size:10px">© SANI GROUP Studio</p>
- </div></div>
+  <!-- Центр стола -->
+  <div id="center" style="display:none">
+    <div id="roundHud">
+      <span id="roundLabel">ПАРТИЯ</span>
+      <b id="turnLabel">ОЖИДАНИЕ</b>
+    </div>
+    <div id="deck">
+      <div class="deck-card"><div class="deck-logo">♠</div></div>
+      <div id="deckCount">0</div>
+      <div id="trump"></div>
+    </div>
+    <div id="pairs"></div>
+  </div>
 
- <div id="confirm" class="modal-layer" onclick="layerClose(event,'confirm')"><div class="modal" style="text-align:center">
-   <h2>Выйти из партии?</h2><p>Текущая партия будет завершена для вас.</p>
-   <div class="row"><button class="secondary" onclick="closeModal('confirm')">ОСТАТЬСЯ</button><button class="primary" onclick="exitMenu()">ВЫЙТИ</button></div>
- </div></div>
+  <!-- Моя зона -->
+  <div class="my-zone" id="myZone" style="display:none">
+    <div id="message">Ожидание игры…</div>
+    <div class="actions">
+      <button id="take" class="action take" onclick="send('take')">БЕРУ</button>
+      <button id="done" class="action done" onclick="send('done')">БИТО</button>
+      <button id="pass" class="action pass" onclick="send('pass')">ПАС</button>
+    </div>
+    <div id="hand" class="hand"></div>
+  </div>
 
- <div id="gameover" class="modal-layer"><div class="modal result">
-   <div style="font-size:28px">♠ ♥ ♦ ♣</div><div id="resultBig" class="big">ПОБЕДА!</div><p id="resultText">Партия завершена.</p>
-   <button id="rematch" class="primary" onclick="rematch()">ИГРАТЬ СНОВА</button>
-   <div id="rematchStatus" class="status"></div>
-   <button class="secondary" onclick="exitMenu()">В ГЛАВНОЕ МЕНЮ</button>
- </div></div>
+  <!-- Эмодзи -->
+  <div id="emojiBar" style="display:none">
+    <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+    <button class="emoji-btn" onclick="sendEmoji('😎')">😎</button>
+    <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
+    <button class="emoji-btn" onclick="sendEmoji('😱')">😱</button>
+    <button class="emoji-btn" onclick="sendEmoji('🎯')">🎯</button>
+    <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+  </div>
+
+  <!-- Чат -->
+  <div id="chat" class="collapsed">
+    <div class="chat-head" onclick="document.getElementById('chat').classList.toggle('collapsed')">
+      <b>💬 ЧАТ</b>
+      <span style="font-size:10px;color:var(--muted)">▼</span>
+    </div>
+    <div class="chat-body">
+      <div class="chat-log" id="chatLog"></div>
+      <div class="chat-quick">
+        <button onclick="quickChat('Класс!')">Класс!</button>
+        <button onclick="quickChat('Повезло')">Повезло</button>
+        <button onclick="quickChat('Беру!')">Беру!</button>
+        <button onclick="quickChat('Ха-ха')">Ха-ха</button>
+      </div>
+      <input class="chat-input" id="chatInput" placeholder="Сообщение…" maxlength="150">
+    </div>
+  </div>
+
+  <!-- Настройки -->
+  <div id="settings">
+    <h3>⚙ НАСТРОЙКИ</h3>
+
+    <div class="sect">
+      <h4>Тема стола</h4>
+      <div class="theme-grid">
+        <button class="theme-btn active" data-theme="royal-gold" data-name="Royal"
+          style="background:linear-gradient(135deg,#0a5b35,#f4d27a)" onclick="setTheme('royal-gold')"></button>
+        <button class="theme-btn" data-theme="forest" data-name="Forest"
+          style="background:linear-gradient(135deg,#2d5a32,#d4a95c)" onclick="setTheme('forest')"></button>
+        <button class="theme-btn" data-theme="artdeco" data-name="Deco"
+          style="background:linear-gradient(135deg,#000,#e0b552)" onclick="setTheme('artdeco')"></button>
+        <button class="theme-btn" data-theme="neon" data-name="Neon"
+          style="background:linear-gradient(135deg,#1a0b3d,#c34bff)" onclick="setTheme('neon')"></button>
+        <button class="theme-btn" data-theme="ocean" data-name="Ocean"
+          style="background:linear-gradient(135deg,#073a52,#5fe0d8)" onclick="setTheme('ocean')"></button>
+        <button class="theme-btn" data-theme="esports" data-name="Esports"
+          style="background:linear-gradient(135deg,#0e1220,#a3ff2b)" onclick="setTheme('esports')"></button>
+      </div>
+    </div>
+
+    <div class="sect">
+      <h4>Поведение</h4>
+      <div class="toggle-row">
+        <span>Звук</span>
+        <div class="toggle on" id="tgSound" onclick="toggleSetting('sound')"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Живой фон</span>
+        <div class="toggle on" id="tgAnims" onclick="toggleSetting('anims')"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Таймер хода (30с)</span>
+        <div class="toggle" id="tgTimer" onclick="toggleSetting('timer')"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Эмодзи-панель</span>
+        <div class="toggle on" id="tgEmoji" onclick="toggleSetting('emoji')"></div>
+      </div>
+    </div>
+
+    <div class="sect">
+      <h4>Сортировка руки</h4>
+      <select class="select" id="sortMode" onchange="setSort(this.value)">
+        <option value="trump-right">По мастям · козыри справа</option>
+        <option value="trump-left">По мастям · козыри слева</option>
+      </select>
+    </div>
+
+    <div class="sect">
+      <h4>Горячие клавиши</h4>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8">
+        <div><b>1–9</b> — сыграть карту по счёту</div>
+        <div><b>Space</b> — Бито / Беру</div>
+        <div><b>Esc</b> — Пас</div>
+      </div>
+    </div>
+
+    <button class="secondary" onclick="toggleSettings()">Закрыть</button>
+  </div>
+
+  <!-- Лобби -->
+  <div id="lobby" class="lobby">
+    <div class="panel">
+      <div class="hero">
+        <div class="suits">♠ ♥ ♦ ♣</div>
+        <h1>ДУРАК</h1>
+        <p>PREMIUM · SANI GROUP</p>
+      </div>
+      <div class="field">
+        <span class="label">ИМЯ ИГРОКА</span>
+        <input id="name" class="input" maxlength="12" value="Игрок">
+      </div>
+      <div class="mode-grid">
+        <button class="mode" onclick="toggleBotBox()">
+          <strong>🤖 Играть с ботом</strong>
+          <small>Матч 1 + 1</small>
+        </button>
+        <button class="mode" onclick="createRoom()">
+          <strong>🌐 Создать комнату</strong>
+          <small>2–4 игрока онлайн</small>
+        </button>
+      </div>
+      <div class="field">
+        <span class="label">РАЗМЕР СТОЛА</span>
+        <div class="count-grid">
+          <button class="count active" onclick="setPlayers(2,this)">2 игрока</button>
+          <button class="count" onclick="setPlayers(3,this)">3 игрока</button>
+          <button class="count" onclick="setPlayers(4,this)">4 игрока</button>
+        </div>
+      </div>
+      <div id="botBox" style="display:none;margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--accent) 5%,transparent)">
+        <span class="label">СЛОЖНОСТЬ БОТА</span>
+        <div class="count-grid">
+          <button class="count" onclick="setBotDifficulty('easy',this)">🟢 Лёгкий</button>
+          <button class="count active" onclick="setBotDifficulty('normal',this)">🟡 Норм</button>
+          <button class="count" onclick="setBotDifficulty('hard',this)">🔴 Сложный</button>
+        </div>
+        <button class="primary" onclick="playBots()">НАЧАТЬ</button>
+      </div>
+      <div class="divider"></div>
+      <span class="label">ВОЙТИ ПО КОДУ</span>
+      <div class="row">
+        <input id="code" class="input" maxlength="4" placeholder="0000"
+               inputmode="numeric" pattern="\d{4}" style="text-align:center;letter-spacing:8px;font-size:20px;font-weight:900">
+        <button class="primary" style="margin:0;max-width:120px" onclick="joinRoom()">ВОЙТИ</button>
+      </div>
+      <div id="roomBox">
+        <span class="label">КОД КОМНАТЫ</span>
+        <div id="roomCode" onclick="copyCode()">----</div>
+      </div>
+      <div id="lobbyStatus" class="status"></div>
+      <button class="secondary" onclick="openModal('rules')">📖 Правила</button>
+      <button class="secondary" onclick="openModal('about')">♠ SANI GROUP</button>
+      <div class="sani">Premium Card Games · <b>SANI GROUP</b></div>
+    </div>
+  </div>
+
+  <!-- Модалки -->
+  <div id="modal-rules" class="modal-layer" onclick="layerClick(event,'rules')">
+    <div class="modal">
+      <button class="close" onclick="closeModal('rules')">×</button>
+      <h2>Правила «Дурака»</h2>
+      <ul>
+        <li>Колода 36 карт, по 6 каждому. Козырь — нижняя карта колоды.</li>
+        <li>Первым ходит игрок с младшим козырем.</li>
+        <li>Атака — картами тех достоинств, что уже на столе.</li>
+        <li>Отбив — старшая той же масти или козырь. Козырь бьётся только старшим козырем.</li>
+        <li>«БЕРУ» — защищающийся забирает все карты со стола.</li>
+        <li>«БИТО» — все отбито, атака завершена.</li>
+        <li>Добор — до 6 карт, пока есть колода.</li>
+        <li>Проиграл тот, у кого остались карты.</li>
+      </ul>
+    </div>
+  </div>
+  <div id="modal-about" class="modal-layer" onclick="layerClick(event,'about')">
+    <div class="modal" style="text-align:center">
+      <button class="close" onclick="closeModal('about')">×</button>
+      <div style="font-size:32px;color:var(--accent)">♠ ♥ ♦ ♣</div>
+      <h2>SANI GROUP</h2>
+      <p>Premium Card Games Studio</p>
+      <p style="color:var(--muted);font-size:11px">© SANI GROUP Studio</p>
+    </div>
+  </div>
+  <div id="modal-confirm" class="modal-layer" onclick="layerClick(event,'confirm')">
+    <div class="modal" style="text-align:center">
+      <h2>Выйти?</h2>
+      <p>Партия будет завершена.</p>
+      <div class="row">
+        <button class="secondary" style="margin:0" onclick="closeModal('confirm')">ОСТАТЬСЯ</button>
+        <button class="primary" style="margin:0" onclick="exitGame()">ВЫЙТИ</button>
+      </div>
+    </div>
+  </div>
+  <div id="modal-victory" class="modal-layer">
+    <div class="modal result">
+      <div style="font-size:32px">🏆</div>
+      <div id="resultBig" class="big">ПОБЕДА!</div>
+      <div id="resultStats" style="font-size:12px;color:var(--muted);margin:10px 0 18px;line-height:1.7"></div>
+      <button id="rematch" class="primary" onclick="voteRematch()">ИГРАТЬ СНОВА</button>
+      <div id="rematchStatus" class="status"></div>
+      <button class="secondary" onclick="exitGame()">В МЕНЮ</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
 </div>
 
 <script>
-const socket=io();
-let state=null, roomCode=null, music=false, gameMode=null, voted=false, playerCount=2;
-const bg=new Audio('./theme.mp3'); bg.loop=true; bg.volume=.28;
-const SUIT_RED=new Set(['♥','♦']);
+/* ============================================================
+   ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+   ============================================================ */
+const socket = io();
+let state = null;
+let roomCode = null;
+let myId = null;
+let gameMode = null;
+let playerCount = 2;
+let botDifficulty = 'normal';
+let rematchVoted = false;
+let serverTurnStart = 0;
+let timerRAF = null;
+let sessionId = localStorage.getItem('sani-durak-session') || null;
 
-function $(id){return document.getElementById(id)}
-function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-function name(){return ($('name').value.trim()||'Игрок').slice(0,12)}
-function toast(t){const x=$('toast');x.textContent=t;x.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>x.classList.remove('show'),1800)}
-function openRules(){$('rules').style.display='flex'} function openAbout(){$('about').style.display='flex'}
-function closeModal(id){$(id).style.display='none'}
-function layerClose(e,id){if(e.target.id===id)closeModal(id)}
-function confirmMenu(){if(state) $('confirm').style.display='flex'}
-function exitMenu(){if(roomCode)socket.emit('leave_room',roomCode);location.reload()}
-function toggleMusic(){music=!music;if(music)bg.play().catch(()=>{});else bg.pause();$('musicBtn').textContent=music?'♫':'♪'}
-function copyCode(){if(roomCode)navigator.clipboard?.writeText(roomCode).then(()=>toast('Код скопирован'))}
-function setPlayers(n){playerCount=Math.max(2,Math.min(4,Number(n)||2));[2,3,4].forEach(x=>$('cnt'+x)?.classList.toggle('active',x===playerCount))}
-function playBots(){gameMode='bot';socket.emit('play_with_bots',{playerName:name()});$('lobbyStatus').textContent='Запускаем матч 1 + 1…'}
-function createRoom(){gameMode='online';socket.emit('create_room',{maxPlayers:playerCount,playerName:name()});$('lobbyStatus').textContent=`Создаём стол на ${playerCount} игроков…`}
-function joinRoom(){const c=$('code').value.trim().toUpperCase();if(!c)return toast('Введите код комнаты');gameMode='online';roomCode=c;socket.emit('join_room',{roomCode:c,playerName:name()})}
-$('code').addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom()});
+const S = {
+  sound: true,
+  anims: true,
+  timer: false,
+  emoji: true,
+  sort: 'trump-right',
+  theme: 'royal-gold'
+};
 
-socket.on('room_created',d=>{roomCode=d.code;$('roomPill').style.display='block';$('roomPill').textContent='КОМНАТА '+d.code;$('roomBox').style.display='block';$('roomCode').textContent=d.code;$('lobbyStatus').textContent=`Ожидание игроков: 1 / ${d.maxPlayers}`});
-socket.on('lobby_update',d=>{roomCode=d.code;$('roomPill').style.display='block';$('roomPill').textContent='КОМНАТА '+d.code;$('roomBox').style.display='block';$('roomCode').textContent=d.code;$('lobbyStatus').textContent=`Ожидание игроков: ${d.current} / ${d.max}`});
-socket.on('error_msg',m=>toast(m));
-socket.on('opponent_disconnected',()=>{toast('Соперник отключился');setTimeout(()=>location.reload(),900)});
-socket.on('game_update',s=>{state=s;roomCode=s.roomCode||roomCode;$('lobby').style.display='none';$('center').style.display='block';$('myZone').style.display='flex';$('statusPill').textContent='В ИГРЕ';if(roomCode&&!roomCode.startsWith('BOTS_')){$('roomPill').style.display='block';$('roomPill').textContent='КОМНАТА '+roomCode}render()});
-socket.on('game_over',d=>{const win=d.winner===socket.id;$('resultBig').textContent=win?'ПОБЕДА!':'ПОРАЖЕНИЕ';$('resultText').textContent=win?'Вы выиграли партию!':'В этот раз победил соперник.';$('gameover').style.display='flex';$('rematch').disabled=false;$('rematch').style.opacity=1;voted=false});
-socket.on('rematch_voted',d=>{$('rematchStatus').textContent=`Реванш: ${d.votesCount} / ${d.totalNeeded}`});
-socket.on('game_restarted',()=>{$('gameover').style.display='none';voted=false});
-socket.on('rematch_timer',t=>{$('rematchStatus').textContent=`Автозакрытие через ${t} сек.`});
-socket.on('room_expired',()=>{toast('Комната закрыта');setTimeout(()=>location.reload(),900)});
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-function rematch(){if(voted)return;voted=true;$('rematch').disabled=true;$('rematch').style.opacity=.45;socket.emit('vote_rematch',roomCode)}
-function action(a){socket.emit('player_action',{roomCode,action:a})}
-function playCard(i){socket.emit('player_action',{roomCode,action:'play_card',cardIdx:i})}
-
-function cardHTML(c,extra=''){
- if(!c||!c.rank)return '';
- const red=SUIT_RED.has(c.suit)?' red':'';
- return `<div class="card${red} ${extra}" data-card="${esc(c.rank+c.suit)}">
-   <div class="corner"><b>${esc(c.rank)}</b><span>${esc(c.suit)}</span></div>
-   <div class="center-suit">${esc(c.suit)}</div><div class="corner bottom"><b>${esc(c.rank)}</b><span>${esc(c.suit)}</span></div><div class="shine"></div>
- </div>`;
+/* ============================================================
+   НАСТРОЙКИ — localStorage
+   ============================================================ */
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('sani-durak') || '{}');
+    Object.assign(S, saved);
+  } catch {}
+  applySettings();
 }
-function renderSeat(elId,p,count,turn,def){
- const el=$(elId);if(!p){el.style.display='none';return}
- el.style.display='flex';
- const initials=(p.name||'И').slice(0,1).toUpperCase();
- const backs=Array(count).fill(0).map(()=>'<div class="back"></div>').join('');
- el.innerHTML=`<div class="profile"><div class="avatar ${p.isBot?'bot':''}">${esc(initials)}${turn?'<div class="turn-ring"></div>':''}</div><div class="name">${esc(p.name)}</div><div class="role">${def?'ЗАЩИЩАЕТСЯ':turn?'ХОДИТ':'СОПЕРНИК'}</div></div><div class="opp-hand">${backs}</div>`;
+function saveSettings() {
+  try { localStorage.setItem('sani-durak', JSON.stringify(S)); } catch {}
 }
-function render(){
- if(!state)return;
- const ps=state.playersInfo||[],my=ps.findIndex(p=>p.id===socket.id);if(my<0)return;
- ['seat-top','seat-left','seat-right'].forEach(id=>$(id).style.display='none');
- const others=[];for(let i=1;i<ps.length;i++)others.push({p:ps[(my+i)%ps.length],idx:(my+i)%ps.length});
- const slots=ps.length===2?['seat-top']:ps.length===3?['seat-left','seat-right']:['seat-left','seat-top','seat-right'];
- others.forEach((o,i)=>{const p=o.p;const count=(state.hands[p.id]||[]).length;renderSeat(slots[i],p,count,state.currentThrowerIdx===o.idx,state.defenderIdx===o.idx)});
- $('deckCount').textContent=(state.deck||[]).length;
- $('deck').style.display=(state.deck&&state.deck.length)?'block':'none';
- $('trump').innerHTML=state.trumpCard?cardHTML(state.trumpCard):'';
- const pairs=$('pairs');pairs.innerHTML=(state.table||[]).map(x=>`<div class="pair">${cardHTML(x.attack)}${x.defense?cardHTML(x.defense,'def'):''}</div>`).join('');
- const hand=state.hands[socket.id]||[];const ranks=new Set((state.table||[]).flatMap(x=>[x.attack?.rank,x.defense?.rank].filter(Boolean)));
- $('hand').innerHTML=hand.map((c,i)=>`<div class="wrap" onclick="playCard(${i})">${cardHTML(c,'clickable')}</div>`).join('');
- const def=state.defenderIdx===my,att=state.attackerIdx===my,thrower=state.currentThrowerIdx===my,table=state.table||[];
- let msg='Ожидание…';
- if(def)msg='Ваша защита: выберите карту, которая бьёт атаку, или нажмите «БЕРУ».';
- else if(table.length===0&&att)msg='Ваш ход: выберите любую карту для атаки.';
- else if(table.length&&thrower)msg='Ваша очередь подкинуть карту или завершить атаку.';
- else if(table.length)msg='Идёт розыгрыш…';
- else msg='Ход соперника…';
- $('message').textContent=msg;
- $('turnLabel').textContent=def?'ВАША ЗАЩИТА':(att&&table.length===0?'ВАШ ХОД':(thrower?'ВАША АТАКА':'ХОД СОПЕРНИКА'));
- const all=table.length>0&&table.every(x=>x.defense);
- $('take').style.display=def&&table.length?'block':'none';
- $('done').style.display=!def&&all?'block':'none';
- $('pass').style.display=!def&&table.length&&thrower?'block':'none';
+function applySettings() {
+  document.documentElement.setAttribute('data-theme', S.theme);
+  document.body.classList.toggle('no-anim', !S.anims);
+  $('soundBtn').textContent = S.sound ? '🔊' : '🔇';
+  $('tgSound').classList.toggle('on', S.sound);
+  $('tgAnims').classList.toggle('on', S.anims);
+  $('tgTimer').classList.toggle('on', S.timer);
+  $('tgEmoji').classList.toggle('on', S.emoji);
+  $('sortMode').value = S.sort;
+  document.querySelectorAll('.theme-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.theme === S.theme);
+  });
+  if (!S.emoji) $('emojiBar').style.display = 'none';
 }
+function setTheme(t) { S.theme = t; saveSettings(); applySettings(); }
+function setSort(v) { S.sort = v; saveSettings(); if (state) render(); }
+function toggleSetting(k) {
+  S[k] = !S[k];
+  saveSettings();
+  applySettings();
+  if (k === 'sound' && S.sound) sfx('click');
+}
+function toggleSound() { toggleSetting('sound'); }
+function toggleSettings() { $('settings').classList.toggle('open'); }
+
+/* ============================================================
+   ЗВУК — Web Audio API
+   ============================================================ */
+let audioCtx = null;
+function ac() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function beep(freq, dur, type = 'sine', vol = .08) {
+  if (!S.sound) return;
+  try {
+    const c = ac();
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(); o.stop(c.currentTime + dur);
+  } catch {}
+}
+function sfx(type) {
+  if (!S.sound) return;
+  switch (type) {
+    case 'click': beep(880, .06, 'triangle', .06); break;
+    case 'card':  beep(320, .08, 'square', .05); break;
+    case 'hit':   beep(180, .07, 'square', .05); setTimeout(() => beep(260, .05, 'square', .04), 40); break;
+    case 'take':  beep(200, .12, 'sawtooth', .05); break;
+    case 'bit':   beep(660, .12, 'triangle', .07); setTimeout(() => beep(990, .15, 'triangle', .06), 60); break;
+    case 'win':   [523,659,784,1046].forEach((f, i) => setTimeout(() => beep(f, .18, 'triangle', .08), i * 90)); break;
+    case 'lose':  [440,392,330,262].forEach((f, i) => setTimeout(() => beep(f, .2, 'sine', .07), i * 110)); break;
+  }
+}
+
+/* ============================================================
+   SVG-МАСТИ
+   ============================================================ */
+const SUIT_PATHS = {
+  '♠': '<path d="M12 2 C6 8 2 12 2 16 c0 2 1.5 4 4 4 1.5 0 3-.8 3.8-2 -.3 3-1.5 4.5-3.8 6 h12 c-2.3-1.5-3.5-3-3.8-6 .8 1.2 2.3 2 3.8 2 2.5 0 4-2 4-4 0-4-4-8-10-14 z"/>',
+  '♥': '<path d="M12 21 C4 14 2 10 2 7 c0-3 2-5 5-5 2 0 4 1 5 3 1-2 3-3 5-3 3 0 5 2 5 5 0 3-2 7-10 14 z"/>',
+  '♦': '<path d="M12 2 L22 12 L12 22 L2 12 z"/>',
+  '♣': '<path d="M12 2 c-3 0-5 2-5 4 0 1.5.7 2.5 1.5 3 -2 .3-3.5 1.5-3.5 3.5 0 2 1.5 3.5 3.5 3.5 .8 0 1.5-.3 2-.7 -.3 2.5-1.5 4-3.5 5.2 h12 c-2-1.2-3.2-2.7-3.5-5.2 .5.4 1.2.7 2 .7 2 0 3.5-1.5 3.5-3.5 0-2-1.5-3.2-3.5-3.5 .8-.5 1.5-1.5 1.5-3 0-2-2-4-5-4-1 0-1.5.3-2 .8 -.5-.5-1-.8-2-.8 z"/>'
+};
+function suitSVG(suit, size = 24) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor">${SUIT_PATHS[suit] || ''}</svg>`;
+}
+
+/* ============================================================
+   PIP-РАСКЛАДКА
+   ============================================================ */
+const PIP_POSITIONS = {
+  1: [[50, 50]],
+  2: [[50, 18], [50, 82]],
+  3: [[50, 18], [50, 50], [50, 82]],
+  4: [[30, 18], [70, 18], [30, 82], [70, 82]],
+  5: [[30, 18], [70, 18], [50, 50], [30, 82], [70, 82]],
+  6: [[30, 18], [70, 18], [30, 50], [70, 50], [30, 82], [70, 82]],
+  7: [[30, 18], [70, 18], [50, 34], [30, 50], [70, 50], [30, 82], [70, 82]],
+  8: [[30, 18], [70, 18], [50, 34], [30, 50], [70, 50], [50, 66], [30, 82], [70, 82]],
+  9: [[30, 18], [70, 18], [30, 40], [70, 40], [50, 50], [30, 60], [70, 60], [30, 82], [70, 82]],
+  10:[[30, 18], [70, 18], [50, 30], [30, 42], [70, 42], [30, 58], [70, 58], [50, 70], [30, 82], [70, 82]]
+};
+function pipLayout(rank, suit) {
+  const r = String(rank);
+  const map = { '6':6, '7':7, '8':8, '9':9, '10':10, 'J':0, 'Q':0, 'K':0, 'A':1 };
+  const n = map[r];
+  if (n === 0) return null; // лицо — рендерим буквой
+  const pos = PIP_POSITIONS[n] || PIP_POSITIONS[1];
+  const isFace = n === 1;
+  const pips = pos.map(([x, y]) =>
+    `<span class="pip" style="left:${x}%;top:${y}%;width:${isFace?55:26}%;height:${isFace?55:26}%">${suitSVG(suit, 24)}</span>`
+  ).join('');
+  return `<div class="pips">${pips}</div>`;
+}
+
+/* ============================================================
+   КАРТА — рендер
+   ============================================================ */
+function cardHTML(c, extra = '') {
+  if (!c || c.rank == null) return '';
+  const isRed = c.suit === '♥' || c.suit === '♦';
+  const isFace = ['J', 'Q', 'K'].includes(String(c.rank));
+  const cls = ['card', isRed ? 'red' : '', isFace ? 'face' : '', extra].filter(Boolean).join(' ');
+
+  let center = '';
+  if (isFace) {
+    center = `<div class="face-letter">${esc(c.rank)}</div>`;
+  } else {
+    const r = String(c.rank);
+    const map = { '6':6, '7':7, '8':8, '9':9, '10':10, 'A':1 };
+    const n = map[r] || 1;
+    const pos = PIP_POSITIONS[n] || PIP_POSITIONS[1];
+    const isAce = n === 1;
+    const pips = pos.map(([x, y]) =>
+      `<span class="pip" style="left:${x}%;top:${y}%;width:${isAce ? 55 : 26}%;height:${isAce ? 55 : 26}%">${suitSVG(c.suit, 24)}</span>`
+    ).join('');
+    center = `<div class="pips">${pips}</div>`;
+  }
+
+  const corners = `
+    <div class="corner"><b>${esc(c.rank)}</b>${suitSVG(c.suit, 12)}</div>
+    <div class="corner bottom"><b>${esc(c.rank)}</b>${suitSVG(c.suit, 12)}</div>`;
+  return `<div class="${cls}" data-id="${esc(c.id)}">${corners}${center}</div>`;
+}
+
+function backHTML() {
+  return `<div class="card back"></div>`;
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render() {
+  if (!state) return;
+  const ps = state.playersInfo || [];
+  const me = ps.find(p => p.isYou);
+  if (!me) return;
+  myId = me.id;
+
+  // Сидения
+  ['seat-top','seat-left','seat-right'].forEach(id => $(id).style.display = 'none');
+  const myIdx = ps.findIndex(p => p.id === myId);
+  const others = [];
+  for (let i = 1; i < ps.length; i++) {
+    const idx = (myIdx + i) % ps.length;
+    others.push({ p: ps[idx], idx });
+  }
+  const slots = ps.length === 2 ? ['seat-top']
+    : ps.length === 3 ? ['seat-left','seat-right']
+    : ['seat-left','seat-top','seat-right'];
+
+  others.forEach((o, i) => {
+    const el = $(slots[i]);
+    if (!el) return;
+    el.style.display = 'flex';
+    const count = state.handCounts?.[o.p.id] ?? (state.hands[o.p.id] || []).length;
+    const isTurn = state.currentThrowerIdx === o.idx;
+    const isDef = state.defenderIdx === o.idx;
+    const initials = (o.p.name || '?').slice(0, 1).toUpperCase();
+    const backs = Array(count).fill(0).map(() => backHTML()).join('');
+    el.innerHTML = `
+      <div class="profile">
+        <div class="avatar ${o.p.isBot ? 'bot' : ''}">${esc(initials)}${isTurn ? '<div class="turn-ring"></div>' : ''}</div>
+        <div class="name">${esc(o.p.name)}</div>
+        <div class="role">${isDef ? 'ЗАЩИЩАЕТСЯ' : isTurn ? 'ХОДИТ' : 'СОПЕРНИК'}</div>
+      </div>
+      <div class="opp-hand">${backs}</div>`;
+  });
+
+  // Колода и козырь
+  $('deckCount').textContent = (state.deck || []).length;
+  $('deck').style.display = (state.deck || []).length ? 'block' : 'none';
+  $('trump').innerHTML = state.trumpCard ? cardHTML(state.trumpCard) : '';
+
+  // Пары на столе
+  const pairs = $('pairs');
+  pairs.innerHTML = (state.table || []).map(pair =>
+    `<div class="pair">${cardHTML(pair.attack)}${pair.defense ? cardHTML(pair.defense, 'def') : ''}</div>`
+  ).join('');
+
+  // Рука
+  const hand = state.hands[myId] || [];
+  const tableRanks = new Set((state.table || []).flatMap(x =>
+    [x.attack?.rank, x.defense?.rank].filter(Boolean)
+  ));
+  const isDefender = state.defenderIdx === myIdx;
+  const isThrower = state.currentThrowerIdx === myIdx;
+  const tableEmpty = (state.table || []).length === 0;
+  const allDefended = (state.table || []).length > 0 && state.table.every(x => x.defense);
+
+  const sorted = [...hand].sort((a, b) => {
+    const aT = a.suit === state.trumpSuit ? 1 : 0;
+    const bT = b.suit === state.trumpSuit ? 1 : 0;
+    if (S.sort === 'trump-left') {
+      if (aT !== bT) return bT - aT;
+    } else {
+      if (aT !== bT) return aT - bT;
+    }
+    return a.value - b.value;
+  });
+
+  const handEl = $('hand');
+  handEl.innerHTML = sorted.map(c => {
+    let playable = false;
+    if (isDefender) {
+      const uncovered = (state.table || []).find(p => !p.defense);
+      playable = uncovered && canBeat(uncovered.attack, c, state.trumpSuit);
+    } else if (tableEmpty) {
+      playable = isThrower;
+    } else if (isThrower && allDefended) {
+      playable = tableRanks.has(c.rank);
+    }
+    const cls = playable ? 'clickable playable' : 'clickable disabled';
+    return `<div class="wrap"><div class="${cls}" onclick="playCard(${c.id})">${cardHTML(c)}</div></div>`;
+  }).join('');
+
+  // Веер
+  const wraps = handEl.querySelectorAll('.wrap');
+  const count = wraps.length;
+  const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cw')) || 78;
+  const containerW = handEl.clientWidth || Math.min(1080, window.innerWidth * .97);
+  const available = containerW - cardW;
+  let overlap = count > 1 ? Math.min(cardW * .5, Math.max(cardW * .15, available / (count - 1))) : 0;
+  if (count <= 6) overlap = Math.max(overlap, cardW * .45);
+  wraps.forEach((w, i) => {
+    if (i === 0) { w.style.marginLeft = '0'; }
+    else { w.style.marginLeft = `-${overlap}px`; }
+    const angle = count > 1 ? (i - (count - 1) / 2) * 16 / (count - 1) : 0;
+    const y = Math.abs(angle) * .6;
+    w.style.transform = `rotate(${angle}deg) translateY(${y}px)`;
+  });
+
+  // Сообщение + кнопки
+  let msg = 'Ожидание…';
+  if (isDefender && !tableEmpty) msg = 'Защита: выберите карту или нажмите БЕРУ';
+  else if (tableEmpty && isThrower) msg = 'Ваш ход: выберите карту для атаки';
+  else if (!tableEmpty && isThrower && allDefended) msg = 'Подкиньте карту или нажмите БИТО';
+  else if (!tableEmpty) msg = 'Идёт розыгрыш…';
+  else msg = 'Ход соперника…';
+  $('message').textContent = msg;
+  $('turnLabel').textContent = isDefender ? 'ВАША ЗАЩИТА'
+    : (tableEmpty && isThrower) ? 'ВАШ ХОД'
+    : (isThrower ? 'ВАША АТАКА' : 'ХОД СОПЕРНИКА');
+
+  $('take').style.display = isDefender && !tableEmpty ? 'block' : 'none';
+  $('done').style.display = !isDefender && allDefended && isThrower ? 'block' : 'none';
+  $('pass').style.display = !isDefender && !tableEmpty && isThrower && allDefended ? 'block' : 'none';
+
+  // Таймер хода
+  if (S.timer && !state.isGameOver) {
+    serverTurnStart = state.turnStartedAt || Date.now();
+    startTurnTimer();
+  }
+}
+
+function canBeat(att, def, trumpSuit) {
+  const aT = att.suit === trumpSuit;
+  const dT = def.suit === trumpSuit;
+  if (aT && !dT) return false;
+  if (aT && dT) return def.value > att.value;
+  if (!dT) return att.suit === def.suit && def.value > att.value;
+  return true;
+}
+
+/* ============================================================
+   ТАЙМЕР ХОДА
+   ============================================================ */
+function startTurnTimer() {
+  if (timerRAF) cancelAnimationFrame(timerRAF);
+  const hud = $('roundHud');
+  if (!hud) return;
+  let bar = hud.querySelector('.turn-timer');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'turn-timer';
+    hud.appendChild(bar);
+  }
+  const limit = 30000;
+  function tick() {
+    const elapsed = Date.now() - serverTurnStart;
+    const left = Math.max(0, limit - elapsed);
+    bar.style.width = (left / limit * 100) + '%';
+    if (left <= 0) return;
+    timerRAF = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+/* ============================================================
+   ДЕЙСТВИЯ
+   ============================================================ */
+function playCard(cardId) {
+  if (suppressClick) { suppressClick = false; return; }
+  sfx('card');
+  socket.emit('player_action', { roomCode, action: 'play_card', cardId });
+}
+function send(action) {
+  sfx(action === 'take' ? 'take' : action === 'done' ? 'bit' : 'click');
+  socket.emit('player_action', { roomCode, action });
+}
+function sendEmoji(e) {
+  sfx('click');
+  socket.emit('emoji', { roomCode, emoji: e });
+}
+function quickChat(text) {
+  socket.emit('send_message', { roomCode, message: text });
+}
+$('chatInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.value.trim()) {
+    socket.emit('send_message', { roomCode, message: e.target.value.trim() });
+    e.target.value = '';
+  }
+});
+
+/* ============================================================
+   ЛОББИ
+   ============================================================ */
+function name() {
+  return ($('name').value.trim() || 'Игрок').slice(0, 12);
+}
+function setPlayers(n, btn) {
+  playerCount = Math.max(2, Math.min(4, n));
+  document.querySelectorAll('.count-grid .count').forEach(b => {
+    if (b.parentElement.parentElement.id !== 'botBox') b.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+}
+function setBotDifficulty(d, btn) {
+  botDifficulty = d;
+  document.querySelectorAll('#botBox .count').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+function toggleBotBox() {
+  const box = $('botBox');
+  box.style.display = box.style.display === 'block' ? 'none' : 'block';
+}
+function playBots() {
+  gameMode = 'bot';
+  socket.emit('play_with_bots', { playerName: name(), botDifficulty });
+  $('lobbyStatus').textContent = 'Запуск матча…';
+}
+function createRoom() {
+  gameMode = 'online';
+  socket.emit('create_room', { maxPlayers: playerCount, playerName: name() });
+  $('lobbyStatus').textContent = `Создаём стол на ${playerCount} игроков…`;
+}
+function joinRoom() {
+  const c = ($('code').value || '').trim();
+  if (!/^\d{4}$/.test(c)) { toast('Код — 4 цифры'); return; }
+  gameMode = 'online';
+  socket.emit('join_room', { roomCode: c, playerName: name() });
+}
+function copyCode() {
+  if (roomCode) navigator.clipboard?.writeText(roomCode).then(() => toast('Скопировано'));
+}
+
+/* ============================================================
+   МОДАЛКИ
+   ============================================================ */
+function openModal(id) { $('modal-' + id).classList.add('open'); }
+function closeModal(id) { $('modal-' + id).classList.remove('open'); }
+function layerClick(e, id) { if (e.target.id === 'modal-' + id) closeModal(id); }
+function confirmExit() { if (state || roomCode) openModal('confirm'); }
+function exitGame() {
+  if (roomCode) socket.emit('leave_room', roomCode);
+  localStorage.removeItem('sani-durak-session');
+  setTimeout(() => location.reload(), 200);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function toast(text) {
+  const el = $('toast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(window.__toastT);
+  window.__toastT = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ============================================================
+   SOCKET HANDLERS
+   ============================================================ */
+socket.on('session_assigned', d => { if (d?.sessionId) { sessionId = d.sessionId; localStorage.setItem('sani-durak-session', sessionId); } });
+socket.on('room_created', d => {
+  roomCode = d.code;
+  if (d.sessionId) { sessionId = d.sessionId; localStorage.setItem('sani-durak-session', sessionId); }
+  $('roomPill').style.display = 'block';
+  $('roomPill').textContent = 'КОМНАТА ' + d.code;
+  $('roomBox').style.display = 'block';
+  $('roomCode').textContent = d.code;
+  $('lobbyStatus').textContent = `Ожидание игроков: 1 / ${d.maxPlayers}`;
+});
+socket.on('lobby_update', d => {
+  roomCode = d.code;
+  $('roomPill').style.display = 'block';
+  $('roomPill').textContent = 'КОМНАТА ' + d.code;
+  $('roomBox').style.display = 'block';
+  $('roomCode').textContent = d.code;
+  $('lobbyStatus').textContent = `Игроков: ${d.current} / ${d.max}`;
+});
+socket.on('error_msg', m => toast(m));
+socket.on('opponent_disconnected', () => { toast('Соперник отключился'); });
+
+socket.on('session_restored', d => { roomCode = d.roomCode || roomCode; toast('Соединение восстановлено'); });
+socket.on('game_update', s => {
+  if (!s) return;
+  if (s.sessionId) { sessionId = s.sessionId; localStorage.setItem('sani-durak-session', sessionId); }
+  state = s;
+  roomCode = s.roomCode || roomCode;
+  $('lobby').style.display = 'none';
+  $('center').style.display = 'block';
+  $('myZone').style.display = 'flex';
+  $('statusPill').textContent = 'В ИГРЕ';
+  if (S.emoji) $('emojiBar').style.display = 'flex';
+  if (roomCode && !roomCode.startsWith('BOTS_')) {
+    $('roomPill').style.display = 'block';
+    $('roomPill').textContent = 'КОМНАТА ' + roomCode;
+  }
+  requestAnimationFrame(() => {
+    try { render(); } catch(e) { console.error(e); toast('Ошибка: ' + e.message); }
+  });
+});
+
+socket.on('game_over', d => {
+  const win = Array.isArray(d.winners) ? d.winners.includes(myId) : d.loser !== myId;
+  $('resultBig').textContent = win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ';
+  const stats = state ? `
+    <div>Ходов: <b>${(state.moveLog || []).length}</b></div>
+    <div>Карт в колоде осталось: <b>${state.deck?.length || 0}</b></div>
+    <div>Длительность: <b>${Math.floor((Date.now() - (state.turnStartedAt || Date.now())) / 1000)} сек</b></div>` : '';
+  $('resultStats').innerHTML = stats;
+  $('modal-victory').classList.add('open');
+  $('rematch').disabled = false;
+  rematchVoted = false;
+  if (win) { sfx('win'); confetti(); } else sfx('lose');
+});
+
+socket.on('rematch_voted', d => {
+  $('rematchStatus').textContent = `Реванш: ${d.votesCount} / ${d.totalNeeded}`;
+});
+socket.on('game_restarted', () => {
+  $('modal-victory').classList.remove('open');
+  rematchVoted = false;
+});
+socket.on('rematch_timer', t => {
+  $('rematchStatus').textContent = `Автозакрытие через ${t} сек`;
+});
+socket.on('room_expired', () => { toast('Комната закрыта'); setTimeout(() => location.reload(), 900); });
+
+socket.on('emoji', ({ playerId, emoji }) => {
+    if (playerId === myId) return;
+    const ps = state?.playersInfo || [];
+    const targetPlayer = ps.find(p => p.id === playerId);
+    if (!targetPlayer) return;
+    const targetIdx = ps.findIndex(p => p.id === playerId);
+    const myIdx = ps.findIndex(p => p.id === myId);
+    if (targetIdx === -1 || myIdx === -1) return;
+    const relativeIdx = (targetIdx - myIdx + ps.length) % ps.length;
+    let seatEl;
+    if (ps.length === 2) {
+      seatEl = $('seat-top');
+    } else if (ps.length === 3) {
+      seatEl = relativeIdx === 1 ? $('seat-left') : $('seat-right');
+    } else {
+      if (relativeIdx === 1) seatEl = $('seat-left');
+      else if (relativeIdx === 2) seatEl = $('seat-top');
+      else seatEl = $('seat-right');
+    }
+    const target = seatEl && seatEl.style.display !== 'none' ? seatEl : $('myZone');
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'float-emoji';
+    el.textContent = emoji;
+    el.style.left = (rect.left + rect.width / 2) + 'px';
+    el.style.top = (rect.top + 10) + 'px';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2300);
+  });
+
+socket.on('chat_message', ({ senderName, message }) => {
+  const log = $('chatLog');
+  if (!log) return;
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="who">${esc(senderName)}:</span> ${esc(message)}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  $('chat').classList.remove('collapsed');
+});
+
+/* ============================================================
+   VOTE REMATCH
+   ============================================================ */
+function voteRematch() {
+  if (rematchVoted) return;
+  rematchVoted = true;
+  $('rematch').disabled = true;
+  socket.emit('vote_rematch', roomCode);
+}
+
+/* ============================================================
+   CONFETTI
+   ============================================================ */
+function confetti() {
+  const colors = ['#f4d27a', '#fff0ae', '#42d889', '#5ca9ff', '#e05a5a'];
+  for (let i = 0; i < 60; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.animationDuration = (2 + Math.random() * 1.5) + 's';
+    el.style.animationDelay = (Math.random() * .4) + 's';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+/* ============================================================
+   ГОРЯЧИЕ КЛАВИШИ
+   ============================================================ */
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (!state) return;
+  if (e.key >= '1' && e.key <= '9') {
+    const hand = state.hands[myId] || [];
+    const idx = parseInt(e.key) - 1;
+    const sorted = [...hand].sort((a, b) => {
+      const aT = a.suit === state.trumpSuit ? 1 : 0;
+      const bT = b.suit === state.trumpSuit ? 1 : 0;
+      if (aT !== bT) return aT - bT;
+      return a.value - b.value;
+    });
+    if (sorted[idx]) playCard(sorted[idx].id);
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    if ($('take').style.display !== 'none') send('take');
+    else if ($('done').style.display !== 'none') send('done');
+  } else if (e.key === 'Escape') {
+    if ($('pass').style.display !== 'none') send('pass');
+  }
+});
+
+let swipeStartY = 0, swipeCardId = null, swipeMoved = false, suppressClick = false;
+$('hand')?.addEventListener('touchstart', e => {
+  const card = e.target.closest('.card');
+  if (card && card.classList.contains('playable')) {
+    swipeStartY = e.touches[0].clientY;
+    swipeCardId = card.dataset.id;
+    swipeMoved = false;
+    suppressClick = false;
+  }
+}, { passive: true });
+$('hand')?.addEventListener('touchmove', e => {
+  if (swipeCardId) {
+    const dy = Math.abs(e.touches[0].clientY - swipeStartY);
+    if (dy > 10) swipeMoved = true;
+  }
+}, { passive: true });
+$('hand')?.addEventListener('touchend', e => {
+  if (!swipeCardId) return;
+  const endY = e.changedTouches[0].clientY;
+  if (swipeMoved || swipeStartY - endY > 40) {
+    suppressClick = true;
+    if (swipeStartY - endY > 40) playCard(parseInt(swipeCardId));
+  }
+  swipeCardId = null;
+  swipeMoved = false;
+}, { passive: true });
+
+/* ============================================================
+   INIT
+   ============================================================ */
+loadSettings();
+$('code').addEventListener('input', e => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+});
+['click', 'touchstart', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, () => {
+    try {
+      const c = ac();
+      if (c.state === 'suspended') c.resume();
+    } catch {}
+  }, { once: true, passive: true })
+);
+socket.emit('client_ready', { sessionId });
 </script>
 </body>
 </html>
