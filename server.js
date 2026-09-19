@@ -715,7 +715,9 @@ function createApp() {
     pingTimeout: 60000,
     pingInterval: 25000
   });
-  app.use(express.static(__dirname));
+  app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: Date.now() });
+});
   app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   socketServer.on('connection', attachHandlers);
   return { app, httpServer, socketServer };
