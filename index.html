@@ -9,15 +9,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Cinzel:wght@600;800&display=swap" rel="stylesheet">
 <style>
-/* ============================================================
-   ТЕМЫ — управляются через data-theme на <html>
-   ============================================================ */
 :root{
   --cw:78px; --ch:112px;
   --radius:11px;
   --trans:.22s cubic-bezier(.2,.7,.3,1.1);
 }
-
 [data-theme="royal-gold"]{
   --bg:#030806; --table-a:#0a5b35; --table-b:#041d12; --table-c:#073d25;
   --accent:#f4d27a; --accent-hi:#fff0ae; --accent-deep:#8e6520;
@@ -68,16 +64,12 @@
   --glass:rgba(8,12,22,.72); --line:rgba(163,255,43,.32);
   --shadow:0 18px 34px rgba(60,220,120,.15);
 }
-
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;
   background:var(--bg);color:var(--text);
   font-family:Manrope,system-ui,sans-serif;}
 button,input{font:inherit;color:inherit;border:0;background:none}
 
-/* ============================================================
-   СТОЛ + ФОН
-   ============================================================ */
 #app{position:fixed;inset:0;overflow:hidden}
 #bg{
   position:absolute;inset:0;z-index:0;
@@ -121,9 +113,6 @@ button,input{font:inherit;color:inherit;border:0;background:none}
 @keyframes bokehDrift{to{background-position:340px 280px,-420px 380px,300px -320px,-480px -400px}}
 body.no-anim .waves,body.no-anim .bokeh{animation:none}
 
-/* ============================================================
-   ТОПБАР
-   ============================================================ */
 .topbar{
   position:absolute;z-index:60;left:0;right:0;top:0;height:62px;
   display:flex;align-items:center;justify-content:space-between;
@@ -159,9 +148,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 .icon-btn:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
 
-/* ============================================================
-   СТОЛ / ЦЕНТР
-   ============================================================ */
 #center{
   position:absolute;left:50%;top:50%;
   transform:translate(-50%,-50%);
@@ -222,9 +208,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 .pair .card{position:absolute;left:0;top:0}
 .pair .card.def{left:20px;top:15px;z-index:2}
 
-/* ============================================================
-   КАРТЫ — с SVG-мастями и pip-раскладкой
-   ============================================================ */
 .card{
   width:var(--cw);height:var(--ch);
   border-radius:var(--radius);
@@ -287,9 +270,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 .card.back::after{display:none}
 
-/* ============================================================
-   МОЯ ЗОНА
-   ============================================================ */
 .my-zone{
   position:absolute;z-index:40;
   left:50%;bottom:6px;transform:translateX(-50%);
@@ -340,9 +320,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 .hand .wrap .card{pointer-events:none}
 
-/* ============================================================
-   МЕСТА (АВАТАРЫ)
-   ============================================================ */
 .seat{
   position:absolute;z-index:20;
   display:flex;flex-direction:column;align-items:center;gap:6px;
@@ -387,9 +364,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 .seat.left .card.back:first-child,.seat.right .card.back:first-child{margin-top:0}
 
-/* ============================================================
-   ЛОББИ
-   ============================================================ */
 .lobby{
   position:absolute;inset:0;z-index:200;
   display:flex;align-items:center;justify-content:center;
@@ -484,9 +458,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   font-family:monospace;
 }
 
-/* ============================================================
-   МОДАЛКИ
-   ============================================================ */
 .modal-layer{
   position:absolute;inset:0;z-index:500;
   display:none;align-items:center;justify-content:center;
@@ -516,9 +487,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   text-shadow:0 0 34px color-mix(in srgb,var(--accent) 50%,transparent);
 }
 
-/* ============================================================
-   НАСТРОЙКИ (панель сбоку)
-   ============================================================ */
 #settings{
   position:absolute;top:0;right:0;height:100%;width:min(360px,92vw);
   z-index:600;
@@ -585,9 +553,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   outline:none;
 }
 
-/* ============================================================
-   ЭМОДЗИ + ЧАТ
-   ============================================================ */
 #emojiBar{
   position:absolute;bottom:172px;left:50%;transform:translateX(-50%);
   z-index:50;display:flex;gap:6px;
@@ -648,9 +613,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 .chat-input:focus{border-color:var(--accent)}
 
-/* ============================================================
-   TOAST
-   ============================================================ */
 #toast{
   position:absolute;z-index:5000;left:50%;top:76px;
   transform:translate(-50%,-14px);opacity:0;
@@ -664,9 +626,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 }
 #toast.show{opacity:1;transform:translate(-50%,0)}
 
-/* ============================================================
-   ЧАСТИЦЫ ПОБЕДЫ
-   ============================================================ */
 .confetti{
   position:fixed;z-index:4000;pointer-events:none;
   width:8px;height:14px;border-radius:2px;
@@ -676,19 +635,12 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 @keyframes confettiFall{
   to{transform:translateY(110vh) rotate(720deg);opacity:.15}
 }
-
-/* ============================================================
-   ТАЙМЕР ХОДА
-   ============================================================ */
 .turn-timer{
   height:3px;border-radius:2px;background:var(--accent);
   margin-top:4px;
   transition:width 1s linear;
 }
 
-/* ============================================================
-   АДАПТИВ
-   ============================================================ */
 @media(max-width:900px){
   :root{--cw:64px;--ch:92px}
   .hand{height:124px}
@@ -725,7 +677,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
   <div class="waves"></div>
   <div class="bokeh"></div>
 
-  <!-- Топбар -->
   <div class="topbar">
     <div class="brand">
       <div class="brand-mark">♠</div>
@@ -741,12 +692,10 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     </div>
   </div>
 
-  <!-- Места -->
   <div id="seat-top" class="seat top" style="display:none"></div>
   <div id="seat-left" class="seat left" style="display:none"></div>
   <div id="seat-right" class="seat right" style="display:none"></div>
 
-  <!-- Центр стола -->
   <div id="center" style="display:none">
     <div id="roundHud">
       <span id="roundLabel">ПАРТИЯ</span>
@@ -760,7 +709,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     <div id="pairs"></div>
   </div>
 
-  <!-- Моя зона -->
   <div class="my-zone" id="myZone" style="display:none">
     <div id="message">Ожидание игры…</div>
     <div class="actions">
@@ -771,7 +719,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     <div id="hand" class="hand"></div>
   </div>
 
-  <!-- Эмодзи -->
   <div id="emojiBar" style="display:none">
     <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
     <button class="emoji-btn" onclick="sendEmoji('😎')">😎</button>
@@ -781,7 +728,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
   </div>
 
-  <!-- Чат -->
   <div id="chat" class="collapsed">
     <div class="chat-head" onclick="document.getElementById('chat').classList.toggle('collapsed')">
       <b>💬 ЧАТ</b>
@@ -799,7 +745,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     </div>
   </div>
 
-  <!-- Настройки -->
   <div id="settings">
     <h3>⚙ НАСТРОЙКИ</h3>
 
@@ -861,7 +806,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     <button class="secondary" onclick="toggleSettings()">Закрыть</button>
   </div>
 
-  <!-- Лобби -->
   <div id="lobby" class="lobby">
     <div class="panel">
       <div class="hero">
@@ -918,7 +862,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
     </div>
   </div>
 
-  <!-- Модалки -->
   <div id="modal-rules" class="modal-layer" onclick="layerClick(event,'rules')">
     <div class="modal">
       <button class="close" onclick="closeModal('rules')">×</button>
@@ -969,9 +912,6 @@ body.no-anim .waves,body.no-anim .bokeh{animation:none}
 </div>
 
 <script>
-/* ============================================================
-   ГЛОБАЛЬНОЕ СОСТОЯНИЕ
-   ============================================================ */
 const socket = io();
 let state = null;
 let roomCode = null;
@@ -995,9 +935,6 @@ const S = {
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-/* ============================================================
-   НАСТРОЙКИ — localStorage
-   ============================================================ */
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem('sani-durak') || '{}');
@@ -1033,9 +970,6 @@ function toggleSetting(k) {
 function toggleSound() { toggleSetting('sound'); }
 function toggleSettings() { $('settings').classList.toggle('open'); }
 
-/* ============================================================
-   ЗВУК — Web Audio API
-   ============================================================ */
 let audioCtx = null;
 function ac() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1068,9 +1002,6 @@ function sfx(type) {
   }
 }
 
-/* ============================================================
-   SVG-МАСТИ
-   ============================================================ */
 const SUIT_PATHS = {
   '♠': '<path d="M12 2 C6 8 2 12 2 16 c0 2 1.5 4 4 4 1.5 0 3-.8 3.8-2 -.3 3-1.5 4.5-3.8 6 h12 c-2.3-1.5-3.5-3-3.8-6 .8 1.2 2.3 2 3.8 2 2.5 0 4-2 4-4 0-4-4-8-10-14 z"/>',
   '♥': '<path d="M12 21 C4 14 2 10 2 7 c0-3 2-5 5-5 2 0 4 1 5 3 1-2 3-3 5-3 3 0 5 2 5 5 0 3-2 7-10 14 z"/>',
@@ -1081,9 +1012,6 @@ function suitSVG(suit, size = 24) {
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor">${SUIT_PATHS[suit] || ''}</svg>`;
 }
 
-/* ============================================================
-   PIP-РАСКЛАДКА
-   ============================================================ */
 const PIP_POSITIONS = {
   1: [[50, 50]],
   2: [[50, 18], [50, 82]],
@@ -1100,7 +1028,7 @@ function pipLayout(rank, suit) {
   const r = String(rank);
   const map = { '6':6, '7':7, '8':8, '9':9, '10':10, 'J':0, 'Q':0, 'K':0, 'A':1 };
   const n = map[r];
-  if (n === 0) return null; // лицо — рендерим буквой
+  if (n === 0) return null;
   const pos = PIP_POSITIONS[n] || PIP_POSITIONS[1];
   const isFace = n === 1;
   const pips = pos.map(([x, y]) =>
@@ -1109,9 +1037,6 @@ function pipLayout(rank, suit) {
   return `<div class="pips">${pips}</div>`;
 }
 
-/* ============================================================
-   КАРТА — рендер
-   ============================================================ */
 function cardHTML(c, extra = '') {
   if (!c || c.rank == null) return '';
   const isRed = c.suit === '♥' || c.suit === '♦';
@@ -1143,9 +1068,6 @@ function backHTML() {
   return `<div class="card back"></div>`;
 }
 
-/* ============================================================
-   RENDER
-   ============================================================ */
 function render() {
   if (!state) return;
   const ps = state.playersInfo || [];
@@ -1153,7 +1075,6 @@ function render() {
   if (!me) return;
   myId = me.id;
 
-  // Сидения
   ['seat-top','seat-left','seat-right'].forEach(id => $(id).style.display = 'none');
   const myIdx = ps.findIndex(p => p.id === myId);
   const others = [];
@@ -1183,18 +1104,15 @@ function render() {
       <div class="opp-hand">${backs}</div>`;
   });
 
-  // Колода и козырь
   $('deckCount').textContent = (state.deck || []).length;
   $('deck').style.display = (state.deck || []).length ? 'block' : 'none';
   $('trump').innerHTML = state.trumpCard ? cardHTML(state.trumpCard) : '';
 
-  // Пары на столе
   const pairs = $('pairs');
   pairs.innerHTML = (state.table || []).map(pair =>
     `<div class="pair">${cardHTML(pair.attack)}${pair.defense ? cardHTML(pair.defense, 'def') : ''}</div>`
   ).join('');
 
-  // Рука
   const hand = state.hands[myId] || [];
   const tableRanks = new Set((state.table || []).flatMap(x =>
     [x.attack?.rank, x.defense?.rank].filter(Boolean)
@@ -1203,6 +1121,7 @@ function render() {
   const isThrower = state.currentThrowerIdx === myIdx;
   const tableEmpty = (state.table || []).length === 0;
   const allDefended = (state.table || []).length > 0 && state.table.every(x => x.defense);
+  const defenderWantsTake = !!state.defenderWantsTake;
 
   const sorted = [...hand].sort((a, b) => {
     const aT = a.suit === state.trumpSuit ? 1 : 0;
@@ -1223,14 +1142,13 @@ function render() {
       playable = uncovered && canBeat(uncovered.attack, c, state.trumpSuit);
     } else if (tableEmpty) {
       playable = isThrower;
-    } else if (isThrower && allDefended) {
+    } else if (isThrower && (allDefended || defenderWantsTake)) {
       playable = tableRanks.has(c.rank);
     }
     const cls = playable ? 'clickable playable' : 'clickable disabled';
     return `<div class="wrap"><div class="${cls}" onclick="playCard(${c.id})">${cardHTML(c)}</div></div>`;
   }).join('');
 
-  // Веер
   const wraps = handEl.querySelectorAll('.wrap');
   const count = wraps.length;
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cw')) || 78;
@@ -1246,11 +1164,17 @@ function render() {
     w.style.transform = `rotate(${angle}deg) translateY(${y}px)`;
   });
 
-  // Сообщение + кнопки
+  const canAttackerAct = !isDefender && isThrower && !tableEmpty &&
+                          (allDefended || defenderWantsTake);
+
   let msg = 'Ожидание…';
-  if (isDefender && !tableEmpty) msg = 'Защита: выберите карту или нажмите БЕРУ';
+  if (isDefender && defenderWantsTake) msg = 'Вы берёте. Ждём подкидываний соперников…';
+  else if (isDefender && !tableEmpty) msg = 'Защита: выберите карту или нажмите БЕРУ';
   else if (tableEmpty && isThrower) msg = 'Ваш ход: выберите карту для атаки';
-  else if (!tableEmpty && isThrower && allDefended) msg = 'Подкиньте карту или нажмите БИТО';
+  else if (!isDefender && isThrower && !tableEmpty && allDefended && !defenderWantsTake)
+    msg = 'Подкиньте карту или нажмите БИТО';
+  else if (!isDefender && isThrower && !tableEmpty && defenderWantsTake)
+    msg = 'Соперник берёт. Подкиньте карту или нажмите ПАС';
   else if (!tableEmpty) msg = 'Идёт розыгрыш…';
   else msg = 'Ход соперника…';
   $('message').textContent = msg;
@@ -1258,11 +1182,11 @@ function render() {
     : (tableEmpty && isThrower) ? 'ВАШ ХОД'
     : (isThrower ? 'ВАША АТАКА' : 'ХОД СОПЕРНИКА');
 
-  $('take').style.display = isDefender && !tableEmpty ? 'block' : 'none';
-  $('done').style.display = !isDefender && allDefended && isThrower ? 'block' : 'none';
-  $('pass').style.display = !isDefender && !tableEmpty && isThrower && allDefended ? 'block' : 'none';
+  $('take').style.display = isDefender && !tableEmpty && !defenderWantsTake ? 'block' : 'none';
+  $('done').style.display = canAttackerAct ? 'block' : 'none';
+  $('done').textContent = (allDefended && !defenderWantsTake) ? 'БИТО' : 'ПАС';
+  $('pass').style.display = 'none';
 
-  // Таймер хода
   if (S.timer && !state.isGameOver) {
     serverTurnStart = state.turnStartedAt || Date.now();
     startTurnTimer();
@@ -1278,9 +1202,6 @@ function canBeat(att, def, trumpSuit) {
   return true;
 }
 
-/* ============================================================
-   ТАЙМЕР ХОДА
-   ============================================================ */
 function startTurnTimer() {
   if (timerRAF) cancelAnimationFrame(timerRAF);
   const hud = $('roundHud');
@@ -1302,9 +1223,6 @@ function startTurnTimer() {
   tick();
 }
 
-/* ============================================================
-   ДЕЙСТВИЯ
-   ============================================================ */
 function playCard(cardId) {
   if (suppressClick) { suppressClick = false; return; }
   sfx('card');
@@ -1328,9 +1246,6 @@ $('chatInput')?.addEventListener('keydown', e => {
   }
 });
 
-/* ============================================================
-   ЛОББИ
-   ============================================================ */
 function name() {
   return ($('name').value.trim() || 'Игрок').slice(0, 12);
 }
@@ -1370,9 +1285,6 @@ function copyCode() {
   if (roomCode) navigator.clipboard?.writeText(roomCode).then(() => toast('Скопировано'));
 }
 
-/* ============================================================
-   МОДАЛКИ
-   ============================================================ */
 function openModal(id) { $('modal-' + id).classList.add('open'); }
 function closeModal(id) { $('modal-' + id).classList.remove('open'); }
 function layerClick(e, id) { if (e.target.id === 'modal-' + id) closeModal(id); }
@@ -1382,9 +1294,6 @@ function exitGame() {
   setTimeout(() => location.reload(), 200);
 }
 
-/* ============================================================
-   TOAST
-   ============================================================ */
 function toast(text) {
   const el = $('toast');
   el.textContent = text;
@@ -1393,9 +1302,6 @@ function toast(text) {
   window.__toastT = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-/* ============================================================
-   SOCKET HANDLERS
-   ============================================================ */
 socket.on('room_created', d => {
   roomCode = d.code;
   $('roomPill').style.display = 'block';
@@ -1500,9 +1406,6 @@ socket.on('chat_message', ({ senderName, message }) => {
   $('chat').classList.remove('collapsed');
 });
 
-/* ============================================================
-   VOTE REMATCH
-   ============================================================ */
 function voteRematch() {
   if (rematchVoted) return;
   rematchVoted = true;
@@ -1510,9 +1413,6 @@ function voteRematch() {
   socket.emit('vote_rematch', roomCode);
 }
 
-/* ============================================================
-   CONFETTI
-   ============================================================ */
 function confetti() {
   const colors = ['#f4d27a', '#fff0ae', '#42d889', '#5ca9ff', '#e05a5a'];
   for (let i = 0; i < 60; i++) {
@@ -1527,9 +1427,6 @@ function confetti() {
   }
 }
 
-/* ============================================================
-   ГОРЯЧИЕ КЛАВИШИ
-   ============================================================ */
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (!state) return;
@@ -1579,9 +1476,6 @@ $('hand')?.addEventListener('touchend', e => {
   swipeMoved = false;
 }, { passive: true });
 
-/* ============================================================
-   INIT
-   ============================================================ */
 loadSettings();
 $('code').addEventListener('input', e => {
   e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
