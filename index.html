@@ -1195,6 +1195,12 @@ function render() {
   const tableEmpty = (state.table || []).length === 0;
   const allDefended = (state.table || []).length > 0 && state.table.every(x => x.defense);
   const pendingTake = !!state.pendingTake;
+  // Лимит фиксируется в начале боя. Не пересчитываем его по текущей
+  // руке защитника: он может потратить карты на отбивку во время боя.
+  const maxTableCards = Number.isFinite(state.attackLimit)
+    ? state.attackLimit
+    : Math.min(6, state.players?.[state.defenderIdx]?.id ? (state.hands[state.players[state.defenderIdx].id] || []).length : 0);
+  const throwLimitReached = (state.table || []).length >= maxTableCards;
 
   const sorted = [...hand].sort((a, b) => {
     const aT = a.suit === state.trumpSuit ? 1 : 0;
@@ -1211,14 +1217,14 @@ function render() {
   handEl.innerHTML = sorted.map(c => {
     let playable = false;
     if (pendingTake) {
-      playable = !isDefender && isThrower && tableRanks.has(c.rank);
+      playable = !isDefender && isThrower && !throwLimitReached && tableRanks.has(c.rank);
     } else if (isDefender) {
       const uncovered = (state.table || []).find(p => !p.defense);
       playable = uncovered && canBeat(uncovered.attack, c, state.trumpSuit);
     } else if (tableEmpty) {
       playable = isThrower;
     } else if (isThrower && allDefended) {
-      playable = tableRanks.has(c.rank);
+      playable = !throwLimitReached && tableRanks.has(c.rank);
     }
     const cardCls = playable ? 'playable' : 'disabled';
     const wrapCls = playable ? 'wrap can-play' : 'wrap';
@@ -1248,8 +1254,13 @@ function render() {
 
   if (pendingTake) {
     if (isThrower) {
-      msg = 'Защитник забирает. Подкиньте карты или нажмите ЗАВЕРШИТЬ';
-      turnText = 'ПОДКИДЫВАЙТЕ';
+      if (throwLimitReached) {
+        msg = 'Больше подкидывать нельзя — нажмите ЗАВЕРШИТЬ';
+        turnText = 'ЗАВЕРШЕНИЕ АТАКИ';
+      } else {
+        msg = 'Защитник забирает. Подкиньте карту или нажмите ЗАВЕРШИТЬ';
+        turnText = 'ПОДКИДЫВАЙТЕ';
+      }
     } else {
       msg = 'Соперник забирает. Ждём подкидывания…';
       turnText = 'ЗАБИРАЕТЕ';
@@ -1261,8 +1272,13 @@ function render() {
     msg = 'Ваш ход: выберите карту для атаки';
     turnText = 'ВАШ ХОД';
   } else if (!tableEmpty && isThrower && allDefended) {
-    msg = 'Подкиньте карту или нажмите БИТО';
-    turnText = 'ВАША АТАКА';
+    if (throwLimitReached) {
+      msg = 'Больше подкидывать нельзя — нажмите БИТО';
+      turnText = 'АТАКА ЗАВЕРШЕНА';
+    } else {
+      msg = 'Подкиньте карту или нажмите БИТО';
+      turnText = 'ВАША АТАКА';
+    }
   } else if (!tableEmpty) {
     msg = 'Идёт розыгрыш…';
     turnText = 'ХОД СОПЕРНИКА';

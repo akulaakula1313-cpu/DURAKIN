@@ -127,6 +127,10 @@ function initGameState(room) {
     discard: [],
     attackerIdx: firstIdx,
     defenderIdx: defIdx,
+    // Лимит подкидываний фиксируется в начале каждого боя.
+    // Нельзя пересчитывать его по текущей руке защитника: во время боя
+    // защитник может потратить карты на отбивку.
+    attackLimit: Math.min(6, (hands[room.players[defIdx].id] || []).length),
     currentThrowerIdx: firstIdx,
     playersInfo: room.players.map(p => ({
       id: p.id, name: p.name, isBot: !!p.isBot,
@@ -175,8 +179,7 @@ function handlePlayCard(room, pId, cardId) {
       getIO().to(pId).emit('error_msg', 'Такого достоинства нет на столе');
       return false;
     }
-    const defLen = (state.hands[defId] || []).length;
-    if (state.table.length >= Math.min(6, defLen)) {
+    if (state.table.length >= state.attackLimit) {
       getIO().to(pId).emit('error_msg', 'Больше подкидывать нельзя');
       return false;
     }
@@ -218,8 +221,7 @@ function handlePlayCard(room, pId, cardId) {
     if (!ranks.has(card.rank)) {
       getIO().to(pId).emit('error_msg', 'Такого достоинства нет на столе'); return false;
     }
-    const defHandLen = (state.hands[defId] || []).length;
-    const maxPairs = Math.min(6, defHandLen);
+    const maxPairs = state.attackLimit;
     if (state.table.length >= maxPairs) {
       getIO().to(pId).emit('error_msg', 'Больше подкидывать нельзя'); return false;
     }
@@ -247,8 +249,7 @@ function handlePass(room, pId) {
     const defId = state.playersInfo[state.defenderIdx].id;
     const n = state.playersInfo.length;
     const ranks = getTableRanks(state.table);
-    const defLen = (state.hands[defId] || []).length;
-    const canAdd = state.table.length < Math.min(6, defLen);
+    const canAdd = state.table.length < state.attackLimit;
 
     for (let i = 1; i < n; i++) {
       const idx = (pIdx + i) % n;
@@ -271,13 +272,19 @@ function handlePass(room, pId) {
   if (!state.table.every(p => p.defense !== null)) {
     getIO().to(pId).emit('error_msg', 'Сначала нужно отбить все карты'); return false;
   }
+  // Если достигнут лимит атаки, новые подкидки невозможны: сразу
+  // завершаем бой. Иначе право подкидывать может ошибочно переходить
+  // между игроками даже при заполненном лимите.
+  if (state.table.length >= state.attackLimit) {
+    return handleDone(room, pId);
+  }
   // Когда все карты отбиты, передаём право подкидывать только игроку,
   // у которого действительно есть подходящая карта. Если таких игроков
   // больше нет — автоматически завершаем атаку. Это не даёт PASS зациклить
   // розыгрыш между игроками.
   const ranks = getTableRanks(state.table);
   const n = state.playersInfo.length;
-  for (let step = 1; step <= n; step++) {
+  for (let step = 1; step < n; step++) {
     const next = (state.currentThrowerIdx + step) % n;
     if (next === state.defenderIdx) continue;
     const nextId = state.playersInfo[next].id;
@@ -308,8 +315,7 @@ function handleTake(room, pId) {
 
   const n = state.playersInfo.length;
   const ranks = getTableRanks(state.table);
-  const defLen = (state.hands[defId] || []).length;
-  const canAddMore = state.table.length < Math.min(6, defLen);
+  const canAddMore = state.table.length < state.attackLimit;
 
   let hasThrower = false;
   if (canAddMore) {
@@ -369,6 +375,7 @@ function finalizeTake(room) {
   }
   state.attackerIdx = nextAttacker;
   state.defenderIdx = nextActiveIndex(state, nextAttacker);
+  state.attackLimit = state.defenderIdx === -1 ? 0 : Math.min(6, (state.hands[state.playersInfo[state.defenderIdx].id] || []).length);
   if (state.defenderIdx === -1) {
     checkGameOver(room);
     return true;
@@ -414,6 +421,7 @@ function handleDone(room, pId) {
   }
   state.attackerIdx = nextAttacker;
   state.defenderIdx = nextActiveIndex(state, nextAttacker);
+  state.attackLimit = state.defenderIdx === -1 ? 0 : Math.min(6, (state.hands[state.playersInfo[state.defenderIdx].id] || []).length);
   if (state.defenderIdx === -1) {
     checkGameOver(room);
     return true;
@@ -599,8 +607,7 @@ function executeBotTurnChain(room) {
     if (!curP.isBot) return false;
     const ranks = getTableRanks(state.table);
     const matches = (state.hands[curP.id] || []).filter(c => ranks.has(c.rank));
-    const defLen = (state.hands[defP.id] || []).length;
-    const canAdd = state.table.length < Math.min(6, defLen);
+    const canAdd = state.table.length < state.attackLimit;
     if (matches.length && canAdd) {
       const card = pickThrowCard(matches, state.trumpSuit, curP.botDifficulty);
       if (card) return handlePlayCard(room, curP.id, card.id);
@@ -636,8 +643,7 @@ function executeBotTurnChain(room) {
   }
 
   const tRanks = getTableRanks(state.table);
-  const defLen = (state.hands[defP.id] || []).length;
-  const maxPairs = Math.min(6, defLen);
+  const maxPairs = state.attackLimit;
   const canAdd = state.table.length < maxPairs;
 
   let cur = state.currentThrowerIdx;
